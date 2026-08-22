@@ -10,7 +10,7 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Marcus Vance** | Male | Founding Lead Graphics & Engine Architect | 🏙️ | Lead | Active |
 | **Valerie Sterling** | Female | 3D Raycaster & Rasterization Specialist | ⚡ | Specialist | Active |
-| *Open Slot* | - | Procedural World & City Generation Specialist | - | Specialist | Open |
+| **Darius Thorne** | Male | Procedural World & City Generation Specialist | 📐 | Specialist | Active |
 | *Open Slot* | - | Entity & Traffic AI Specialist | - | Specialist | Open |
 | *Open Slot* | - | ASCII Art & Lighting Specialist | - | Specialist | Open |
 | *Capacity* | - | General Associates & Helpers | - | Associate | Unlimited |

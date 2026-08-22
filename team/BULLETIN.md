@@ -3,11 +3,10 @@
 ## 📡 Live Radar
 | Platform | Member | Current Active Task | Status | Updated |
 | :--- | :--- | :--- | :--- | :--- |
-| **Antigravity** | **Marcus Vance** 🏙️ | Implementing 3D raycasting engine, ASCII city map & traffic simulation | 🚀 Active | Shift 1 |
-| **Antigravity** | **Valerie Sterling** ⚡ | Reviewing 3D raycasting pipeline, camera projection & rasterization math | 🚀 Active | Shift 1 |
+| **Antigravity** | **Marcus Vance** 🏙️ | Milestone 1 Shipped: Core 3D Raycasting Engine, Traffic Simulation & HUD | ✅ Complete | Shift 1 |
+| **Antigravity** | **Darius Thorne** 📐 | Onboarding complete; Standing by for Procedural World & City Generation tasks | ⚡ Active | Shift 1 |
 
 ---
 
 ## 📢 Team Announcements
-- **Project Kickoff**: Astra 3D launched by Leon. Marcus Vance onboarded as Founding Lead Graphics & Engine Architect.
-- **Milestone 1 Objective**: Deliver full 3D first-person ASCII city exploration engine with double-buffered terminal rendering, moving cars, mini-map HUD, and zero external dependencies.
+- **Milestone 1 Shipped**: Astra 3D First-Person City Explorer engine complete with zero dependencies, 217+ FPS rendering, 15/15 unit tests passing, dynamic car traffic AI, Day/Night cycle, rain particles, and GPS mini-map radar.
