@@ -226,6 +226,22 @@ class Raycaster:
                     char = '+' if (int(floor_x * 2) + int(floor_y * 2)) % 2 == 0 else ' '
                     fg = (int(160 * floor_shade), int(150 * floor_shade), int(140 * floor_shade))
                     bg = (int(50 * floor_shade), int(48 * floor_shade), int(45 * floor_shade))
+                elif ftype == FloorType.WATER:
+                    char = '~' if (int(floor_x * 4) + int(floor_y * 4)) % 2 == 0 else '≈'
+                    fg = (int(100 * floor_shade), int(210 * floor_shade), int(255 * floor_shade))
+                    bg = (int(10 * floor_shade), int(30 * floor_shade), int(65 * floor_shade))
+                elif ftype == FloorType.BRIDGE:
+                    char = '=' if (int(floor_x * 3) + int(floor_y * 3)) % 2 == 0 else '-'
+                    fg = (int(190 * floor_shade), int(160 * floor_shade), int(120 * floor_shade))
+                    bg = (int(40 * floor_shade), int(35 * floor_shade), int(30 * floor_shade))
+                elif ftype == FloorType.COBBLESTONE:
+                    char = 'o' if (int(floor_x * 3) + int(floor_y * 3)) % 2 == 0 else '·'
+                    fg = (int(170 * floor_shade), int(140 * floor_shade), int(120 * floor_shade))
+                    bg = (int(45 * floor_shade), int(35 * floor_shade), int(30 * floor_shade))
+                elif ftype == FloorType.WOOD_DECK:
+                    char = '|' if (int(floor_x * 4)) % 2 == 0 else ' '
+                    fg = (int(160 * floor_shade), int(115 * floor_shade), int(75 * floor_shade))
+                    bg = (int(40 * floor_shade), int(28 * floor_shade), int(18 * floor_shade))
                 else:
                     # Sidewalk concrete tiles
                     char = '.' if (int(floor_x * 4) + int(floor_y * 4)) % 2 == 0 else '_'

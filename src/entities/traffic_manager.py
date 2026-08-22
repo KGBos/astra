@@ -18,7 +18,12 @@ class TrafficManager:
         self._spawn_vehicles(vehicle_count)
 
     def _spawn_static_props(self):
-        # 1. Place Streetlamps at road corners / sidewalks
+        # Use procedural props if available from CityMap
+        if hasattr(self.city_map, 'props') and self.city_map.props:
+            self.static_props = list(self.city_map.props)
+            return
+
+        # Fallback to manual prop placement
         for col in self.city_map.ns_road_cols:
             for row in self.city_map.ew_road_rows:
                 # 4 corners around each intersection

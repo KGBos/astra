@@ -55,7 +55,15 @@ class HUD:
         time_str = day_night.get_time_string()
         weather_str = weather.current_weather.value
 
-        top_left = f" ASTRA 3D │ {district} │ {street}"
+        # Nearest Landmark Telemetry
+        lm_info = city_map.get_nearest_landmark(camera.pos.x, camera.pos.y)
+        if lm_info:
+            lm, dist, lm_bearing = lm_info
+            poi_tag = f" │ ★ {lm.name} ({dist:.0f}m {lm_bearing})"
+        else:
+            poi_tag = ""
+
+        top_left = f" ASTRA 3D │ {district} │ {street}{poi_tag}"
         top_right = f"DIR: {bearing} [{cam_deg:03d}°] │ {time_str} │ {weather_str} │ {fps:4.1f} FPS "
 
         # Draw Top Bar background
@@ -76,8 +84,8 @@ class HUD:
 
         # 5. Bottom Navigation & Status Bar
         speed_gauge = "█" * int(min(10, (camera.move_speed * (camera.sprint_mult if camera.is_jumping or camera.bob_amount > 0 else 1.0))))
-        bot_left = f" POS: X:{camera.pos.x:4.1f} Y:{camera.pos.y:4.1f} │ SPEED: [{speed_gauge:<10}] │ EYE: {camera.eye_height:.1f}"
-        bot_right = "[WASD] Move │ [←→/QE] Turn │ [Shift] Sprint │ [Space] Jump │ [M] Map │ [T] Time │ [R] Rain │ [Esc] Quit "
+        bot_left = f" POS: X:{camera.pos.x:4.1f} Y:{camera.pos.y:4.1f} │ SEED: #{city_map.seed} │ SPEED: [{speed_gauge:<10}]"
+        bot_right = "[WASD] Move │ [←→/QE] Turn │ [G] New City │ [L] POI │ [M] Map │ [T] Time │ [R] Rain │ [Esc] Quit "
 
         # Draw Bottom Bar background
         for x in range(w):
@@ -100,7 +108,7 @@ class HUD:
         sprites: List[Sprite],
         buffer: ScreenBuffer
     ):
-        map_w = 17
+        map_w = 19
         map_h = 9
         map_x = buffer.width - map_w - 2
         map_y = 2
@@ -126,12 +134,25 @@ class HUD:
                 if 0 <= wx < city_map.width and 0 <= wy < city_map.height:
                     if city_map.is_solid(wx, wy):
                         buffer.set_pixel(sx, sy, '#', (90, 100, 130), (20, 25, 40))
+                    elif city_map.is_water(wx, wy):
+                        buffer.set_pixel(sx, sy, '~', (80, 180, 240), (10, 25, 45))
+                    elif city_map.get_floor_type(wx, wy) == 5:  # PARK_GRASS
+                        buffer.set_pixel(sx, sy, '♣', (60, 200, 70), (10, 25, 15))
                     elif (wx, wy) in city_map.traffic_lights:
                         tl = city_map.traffic_lights[(wx, wy)]
                         tl_col = (50, 255, 50) if tl.is_green_for_ns() else (255, 50, 50)
                         buffer.set_pixel(sx, sy, 'o', tl_col, (10, 15, 25))
                     else:
                         buffer.set_pixel(sx, sy, '·', (60, 70, 85), (10, 15, 25))
+
+        # Draw Landmark blips on radar
+        for lm in city_map.landmarks:
+            ldx = int(lm.x - camera.pos.x)
+            ldy = int(lm.y - camera.pos.y)
+            if -radar_radius_x <= ldx <= radar_radius_x and -radar_radius_y <= ldy <= radar_radius_y:
+                blip_x = center_screen_x + ldx
+                blip_y = center_screen_y + ldy
+                buffer.set_pixel(blip_x, blip_y, '★', (255, 220, 50), (10, 15, 25))
 
         # Draw vehicle / sprite blips on radar
         for spr in sprites:
