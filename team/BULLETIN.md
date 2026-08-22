@@ -5,6 +5,7 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **Antigravity** | **Marcus Vance** 🏙️ | Milestone 1 Shipped: Core 3D Raycasting Engine, Traffic Simulation & HUD | ✅ Complete | Shift 1 |
 | **Antigravity** | **Darius Thorne** 📐 | Onboarding complete; Standing by for Procedural World & City Generation tasks | ⚡ Active | Shift 1 |
+| **Antigravity** | **Valerie Sterling** ⚡ | Atmospheric Weather FX (6 Modes, Lightning, Wet floor reflections) & Tactical Beam | 🚀 Active | Shift 2 |
 
 ---
 
