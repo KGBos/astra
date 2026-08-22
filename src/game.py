@@ -1,5 +1,6 @@
 """
-Main Game Engine loop, state management, and autonomous demo mode for Astra 3D.
+Main Game Engine loop, vehicle cockpit driving, procedural audio and state management for Astra 3D.
+Author: Valerie Sterling ⚡ (3D Raycaster & Rasterization Specialist)
 """
 
 import time
@@ -12,10 +13,13 @@ from src.world.city_map import CityMap
 from src.world.day_night import DayNightCycle
 from src.world.weather import WeatherSystem, WeatherType
 from src.entities.traffic_manager import TrafficManager
+from src.entities.vehicle_controller import VehicleController
 from src.renderer.screen_buffer import ScreenBuffer
 from src.renderer.hud import HUD
+from src.renderer.cockpit_hud import CockpitHUD
 from src.renderer.terminal import TerminalManager
 from src.input.keyboard import KeyboardController, KeyAction
+from src.audio.soundscape import SoundscapeManager
 
 
 class Game:
@@ -25,7 +29,8 @@ class Game:
         height: int = 32,
         target_fps: int = 30,
         use_color: bool = True,
-        demo_mode: bool = False
+        demo_mode: bool = False,
+        enable_audio: bool = True
     ):
         self.target_fps = target_fps
         self.frame_time = 1.0 / target_fps
@@ -36,6 +41,7 @@ class Game:
         # Subsystems
         self.terminal = TerminalManager()
         self.keyboard = KeyboardController()
+        self.soundscape = SoundscapeManager(enabled=enable_audio)
         
         # World & Camera
         self.city_map = CityMap(width=42, height=42)
@@ -43,7 +49,9 @@ class Game:
         self.camera = Camera(x=12.5, y=6.5, fov_deg=70.0)
         self.camera.set_direction(math.pi / 2.0)  # Face South (+Y) down avenue
 
+        # Simulation & Entities
         self.traffic = TrafficManager(self.city_map, vehicle_count=18)
+        self.vehicle_ctrl = VehicleController()
         self.day_night = DayNightCycle(start_hour=22.5, time_speed=0.4)
         self.weather = WeatherSystem(weather=WeatherType.CLEAR)
         
@@ -53,6 +61,7 @@ class Game:
         self.buffer = ScreenBuffer(width, height, use_color=use_color)
         self.raycaster = Raycaster(width, height)
         self.hud = HUD(show_minimap=True)
+        self.cockpit_hud = CockpitHUD()
 
         # Performance metrics
         self.fps = float(target_fps)
@@ -120,7 +129,6 @@ class Game:
     def _process_input(self, dt: float):
         if self.demo_mode:
             self._update_demo_camera(dt)
-            # Still poll keyboard to check for exit
             self.keyboard.poll_input()
             if self.keyboard.has_event(KeyAction.QUIT):
                 self.running = False
@@ -133,33 +141,79 @@ class Game:
             self.running = False
             return
 
-        # Movement
-        is_sprint = self.keyboard.is_action_active(KeyAction.SPRINT)
-        if self.keyboard.is_action_active(KeyAction.MOVE_FORWARD):
-            self.camera.move_forward(dt, is_sprint, self.city_map)
-        elif self.keyboard.is_action_active(KeyAction.MOVE_BACKWARD):
-            self.camera.move_backward(dt, is_sprint, self.city_map)
+        # Vehicle Interaction (Enter / Exit)
+        if self.keyboard.has_event(KeyAction.INTERACT_VEHICLE):
+            if not self.vehicle_ctrl.is_driving:
+                mounted = self.vehicle_ctrl.try_enter_nearest_vehicle(self.camera, self.traffic.vehicles)
+                if mounted:
+                    self.soundscape.play("chime")
+                    self.hud.set_notification(f"ENTERED {mounted.vtype.value} // DRIVING MODE ACTIVE")
+                else:
+                    self.hud.set_notification("NO VEHICLE IN RANGE // Walk closer to a car")
+            else:
+                self.vehicle_ctrl.exit_vehicle(self.camera)
+                self.soundscape.play("chime")
+                self.hud.set_notification("EXITED VEHICLE // ON FOOT")
 
-        if self.keyboard.is_action_active(KeyAction.STRAFE_LEFT):
-            self.camera.strafe_left(dt, self.city_map)
-        elif self.keyboard.is_action_active(KeyAction.STRAFE_RIGHT):
-            self.camera.strafe_right(dt, self.city_map)
+        # Driving Physics or Pedestrian Movement
+        if self.vehicle_ctrl.is_driving:
+            throttle = 0.0
+            if self.keyboard.is_action_active(KeyAction.MOVE_FORWARD):
+                throttle += 1.0
+            if self.keyboard.is_action_active(KeyAction.MOVE_BACKWARD):
+                throttle -= 1.0
 
-        # Turning
-        if self.keyboard.is_action_active(KeyAction.TURN_LEFT):
-            self.camera.rotate(-self.camera.rot_speed * dt)
-        elif self.keyboard.is_action_active(KeyAction.TURN_RIGHT):
-            self.camera.rotate(self.camera.rot_speed * dt)
+            steer = 0.0
+            if self.keyboard.is_action_active(KeyAction.TURN_LEFT) or self.keyboard.is_action_active(KeyAction.STRAFE_LEFT):
+                steer -= 1.0
+            if self.keyboard.is_action_active(KeyAction.TURN_RIGHT) or self.keyboard.is_action_active(KeyAction.STRAFE_RIGHT):
+                steer += 1.0
 
-        # Pitch
-        if self.keyboard.is_action_active(KeyAction.LOOK_UP):
-            self.camera.pitch_look(12.0 * dt)
-        elif self.keyboard.is_action_active(KeyAction.LOOK_DOWN):
-            self.camera.pitch_look(-12.0 * dt)
+            collided = self.vehicle_ctrl.update_physics(
+                dt=dt,
+                throttle=throttle,
+                steer_input=steer,
+                camera=self.camera,
+                city_map=self.city_map,
+                other_vehicles=self.traffic.vehicles
+            )
+            if collided:
+                self.soundscape.play("thud")
 
-        # Actions
-        if self.keyboard.has_event(KeyAction.JUMP):
-            self.camera.jump()
+            if self.keyboard.has_event(KeyAction.TOGGLE_SIREN):
+                self.vehicle_ctrl.siren_active = not self.vehicle_ctrl.siren_active
+                self.hud.set_notification(f"EMERGENCY SIREN // {'ACTIVE' if self.vehicle_ctrl.siren_active else 'OFF'}")
+
+        else:
+            # On-Foot Walking & Strafing
+            is_sprint = self.keyboard.is_action_active(KeyAction.SPRINT)
+            if self.keyboard.is_action_active(KeyAction.MOVE_FORWARD):
+                self.camera.move_forward(dt, is_sprint, self.city_map)
+            elif self.keyboard.is_action_active(KeyAction.MOVE_BACKWARD):
+                self.camera.move_backward(dt, is_sprint, self.city_map)
+
+            if self.keyboard.is_action_active(KeyAction.STRAFE_LEFT):
+                self.camera.strafe_left(dt, self.city_map)
+            elif self.keyboard.is_action_active(KeyAction.STRAFE_RIGHT):
+                self.camera.strafe_right(dt, self.city_map)
+
+            # Turning
+            if self.keyboard.is_action_active(KeyAction.TURN_LEFT):
+                self.camera.rotate(-self.camera.rot_speed * dt)
+            elif self.keyboard.is_action_active(KeyAction.TURN_RIGHT):
+                self.camera.rotate(self.camera.rot_speed * dt)
+
+            # Pitch
+            if self.keyboard.is_action_active(KeyAction.LOOK_UP):
+                self.camera.pitch_look(12.0 * dt)
+            elif self.keyboard.is_action_active(KeyAction.LOOK_DOWN):
+                self.camera.pitch_look(-12.0 * dt)
+
+            # Jump
+            if self.keyboard.has_event(KeyAction.JUMP):
+                self.camera.jump()
+
+        # Shared Actions
         if self.keyboard.has_event(KeyAction.TOGGLE_MAP):
             self.hud.show_minimap = not self.hud.show_minimap
             self.hud.set_notification(f"GPS RADAR: {'ENABLED' if self.hud.show_minimap else 'DISABLED'}")
@@ -173,55 +227,69 @@ class Game:
             self.hud.toggle_flashlight()
         if self.keyboard.has_event(KeyAction.TRIGGER_LIGHTNING):
             self.weather.trigger_lightning()
+            self.soundscape.play("thunder")
             self.hud.set_notification("⚡ STRIKE! LIGHTNING FLASH INITIATED")
         if self.keyboard.has_event(KeyAction.HONK_HORN):
+            self.soundscape.play("horn")
             self.hud.set_notification("HONK! 📯 CARS ALERTED", duration=2.0)
+        if self.keyboard.has_event(KeyAction.TOGGLE_AUDIO):
+            unmuted = self.soundscape.toggle_mute()
+            self.hud.set_notification(f"AUDIO SOUNDSCAPE // {'ENABLED' if unmuted else 'MUTED'}")
 
     def _update_demo_camera(self, dt: float):
         """Smooth autonomous city tour for demo mode."""
         self.demo_timer += dt
-        # Move forward automatically along road grid
         self.camera.move_forward(dt, is_sprinting=False, world_map=self.city_map)
         
-        # Slowly sweep camera yaw and turn at intersections
         ix = int(self.camera.pos.x)
         iy = int(self.camera.pos.y)
         if (ix, iy) in self.city_map.traffic_lights:
-            # Turn slightly
             self.camera.rotate(0.3 * dt)
         else:
             self.camera.rotate(math.sin(self.demo_timer * 0.5) * 0.15 * dt)
 
     def _update_simulation(self, dt: float):
-        self.camera.update_physics(dt)
+        if not self.vehicle_ctrl.is_driving:
+            self.camera.update_physics(dt)
         self.city_map.update(dt)
         self.traffic.update(dt)
         self.day_night.update(dt)
         self.weather.update(dt, self.screen_w, self.screen_h)
         self.hud.update(dt, self.weather)
+        
+        is_raining = self.weather.current_weather in (WeatherType.RAIN, WeatherType.STORM)
+        self.cockpit_hud.update(dt, is_raining)
 
     def _render_frame(self):
         self.buffer.clear()
         
-        # Collect dynamic sprites
-        sprites = self.traffic.get_all_sprites_for_camera(self.camera.pos.x, self.camera.pos.y)
+        # Collect dynamic sprites (filter out currently driven vehicle to avoid drawing it on top of camera)
+        all_sprites = self.traffic.get_all_sprites_for_camera(self.camera.pos.x, self.camera.pos.y)
+        if self.vehicle_ctrl.is_driving and self.vehicle_ctrl.current_vehicle is not None:
+            driven = self.vehicle_ctrl.current_vehicle
+            all_sprites = [s for s in all_sprites if abs(s.x - driven.x) > 0.1 or abs(s.y - driven.y) > 0.1]
 
         # 3D Raycasting & projection
         self.raycaster.render(
             camera=self.camera,
             city_map=self.city_map,
-            sprites=sprites,
+            sprites=all_sprites,
             day_night=self.day_night,
             buffer=self.buffer,
             weather=self.weather,
             flashlight_on=self.hud.flashlight_on
         )
 
+        # Cockpit Dashboard (if driving)
+        if self.vehicle_ctrl.is_driving:
+            is_raining = self.weather.current_weather in (WeatherType.RAIN, WeatherType.STORM)
+            self.cockpit_hud.render(self.vehicle_ctrl, self.buffer, is_raining)
+
         # HUD & Overlays
         self.hud.render(
             camera=self.camera,
             city_map=self.city_map,
-            sprites=sprites,
+            sprites=all_sprites,
             day_night=self.day_night,
             weather=self.weather,
             fps=self.fps,

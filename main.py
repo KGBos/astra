@@ -35,16 +35,19 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Controls:
-  [W/A/S/D]        Move forward / Strafe left / Move back / Strafe right
+  [W/A/S/D]        Move forward / Strafe left / Move back / Strafe right (or Gas / Steer / Brake while driving)
   [Q / E] or [← / →] Turn Left / Turn Right
   [I / K]          Look Up / Look Down (Pitch)
-  [Shift + W]      Sprint
-  [Space]          Jump
+  [Shift + W]      Sprint (on foot)
+  [Space]          Jump (on foot)
+  [E / V]          Enter / Exit Nearest Vehicle (Drivable Cockpit Mode)
+  [G]              Toggle Police Siren (while driving police car)
   [M]              Toggle Mini-Map Radar
   [T]              Advance Time of Day
   [R]              Cycle Weather (Clear / Rain / Storm / Fog / Snow / Acid Rain)
   [F]              Toggle Tactical Light Beam (Flashlight)
   [L]              Trigger Lightning Flash Strike
+  [B]              Toggle Audio Soundscape (Mute / Unmute)
   [H]              Honk Horn
   [Esc] or [X]     Exit
         """
