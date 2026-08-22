@@ -1,5 +1,6 @@
 """
-Core 3D Raycasting Engine, Z-Buffer, Floor/Sky Renderer, and 3D Sprite Projector for Astra 3D.
+Core 3D Raycasting Engine, Z-Buffer, Floor/Sky Renderer, Volumetric Fog, Wet Surface Reflections & 3D Sprite Projector.
+Author: Valerie Sterling ⚡ (3D Raycaster & Rasterization Specialist)
 """
 
 import math
@@ -9,8 +10,18 @@ from src.engine.math3d import clamp, RayHit
 from src.world.city_map import CityMap, FloorType
 from src.world.textures import get_texture
 from src.world.day_night import DayNightCycle
+from src.world.weather import WeatherSystem
 from src.entities.sprite import Sprite
 from src.renderer.screen_buffer import ScreenBuffer
+
+
+def _blend_color(c1: Tuple[int, int, int], c2: Tuple[int, int, int], factor: float) -> Tuple[int, int, int]:
+    f = clamp(factor, 0.0, 1.0)
+    return (
+        int(c1[0] + (c2[0] - c1[0]) * f),
+        int(c1[1] + (c2[1] - c1[1]) * f),
+        int(c1[2] + (c2[2] - c1[2]) * f)
+    )
 
 
 class Raycaster:
@@ -30,28 +41,62 @@ class Raycaster:
         city_map: CityMap,
         sprites: List[Sprite],
         day_night: DayNightCycle,
-        buffer: ScreenBuffer
+        buffer: ScreenBuffer,
+        weather: Optional[WeatherSystem] = None,
+        flashlight_on: bool = False
     ):
-        ambient = day_night.get_ambient_light()
+        base_ambient = day_night.get_ambient_light()
         zenith_col, horizon_col = day_night.get_sky_gradient()
+
+        # Check for lightning surge in storm mode
+        lightning_intensity = weather.get_lightning_intensity() if weather else 0.0
+        lightning_col = weather.get_lightning_color() if weather else (255, 255, 255)
+        
+        # Modulate ambient with lightning flash
+        ambient = clamp(base_ambient * (1.0 + lightning_intensity * 2.8), 0.1, 2.0)
 
         # Camera horizon with pitch and eye height offset
         horizon_y = int(self.height / 2.0 + camera.pitch + (camera.eye_height - 0.5) * 8.0 + camera.bob_amount * self.height)
 
         # 1. Render Sky (Ceiling) & Floor Background Slices
-        self._render_sky_and_floor(camera, city_map, day_night, horizon_y, buffer)
+        self._render_sky_and_floor(
+            camera=camera,
+            city_map=city_map,
+            day_night=day_night,
+            weather=weather,
+            horizon_y=horizon_y,
+            lightning_intensity=lightning_intensity,
+            lightning_col=lightning_col,
+            buffer=buffer
+        )
 
         # 2. Raycast Walls & Record Z-Buffer
         for x in range(self.width):
             hit = self._cast_ray(x, camera, city_map)
             if hit.hit:
                 self.z_buffer[x] = hit.perp_wall_dist
-                self._draw_wall_slice(x, hit, camera, horizon_y, ambient, buffer)
+                self._draw_wall_slice(
+                    screen_x=x,
+                    hit=hit,
+                    camera=camera,
+                    horizon_y=horizon_y,
+                    ambient=ambient,
+                    weather=weather,
+                    flashlight_on=flashlight_on,
+                    buffer=buffer
+                )
             else:
                 self.z_buffer[x] = 100.0
 
         # 3. Project & Draw 3D Billboarding Sprites (Vehicles, Streetlamps, Trees)
-        self._render_sprites(camera, sprites, horizon_y, ambient, buffer)
+        self._render_sprites(
+            camera=camera,
+            sprites=sprites,
+            horizon_y=horizon_y,
+            ambient=ambient,
+            weather=weather,
+            buffer=buffer
+        )
 
     def _cast_ray(self, screen_x: int, camera: Camera, city_map: CityMap) -> RayHit:
         camera_x = 2.0 * screen_x / float(self.width) - 1.0
@@ -120,6 +165,8 @@ class Raycaster:
         camera: Camera,
         horizon_y: int,
         ambient: float,
+        weather: Optional[WeatherSystem],
+        flashlight_on: bool,
         buffer: ScreenBuffer
     ):
         texture = get_texture(hit.wall_type)
@@ -133,8 +180,20 @@ class Raycaster:
         distance_shade = (1.0 / (1.0 + 0.08 * hit.perp_wall_dist + 0.005 * hit.perp_wall_dist * hit.perp_wall_dist))
         shade = clamp(distance_shade * ambient * side_mult, 0.1, 1.0)
 
+        # Tactical Flashlight beam calculation
+        if flashlight_on:
+            screen_center_norm = abs(2.0 * screen_x / float(self.width) - 1.0)
+            cone = max(0.0, 1.0 - screen_center_norm * 1.7)
+            dist_factor = max(0.0, 1.0 - hit.perp_wall_dist / 14.0)
+            flashlight_boost = cone * dist_factor * 0.85
+            shade = clamp(shade + flashlight_boost, 0.1, 1.6)
+
         y0 = max(0, draw_start)
         y1 = min(self.height - 1, draw_end)
+
+        fog_blend = 0.0
+        if weather and weather.fog_density > 0:
+            fog_blend = clamp(1.0 - math.exp(-hit.perp_wall_dist * weather.fog_density), 0.0, 0.95)
 
         for y in range(y0, y1 + 1):
             # Normalized vertical texture coordinate
@@ -142,8 +201,13 @@ class Raycaster:
             char, fg_raw, bg_raw = texture.sample(hit.wall_x, v)
 
             # Apply lighting
-            fg = (int(fg_raw[0] * shade), int(fg_raw[1] * shade), int(fg_raw[2] * shade))
-            bg = (int(bg_raw[0] * shade), int(bg_raw[1] * shade), int(bg_raw[2] * shade))
+            fg = (min(255, int(fg_raw[0] * shade)), min(255, int(fg_raw[1] * shade)), min(255, int(fg_raw[2] * shade)))
+            bg = (min(255, int(bg_raw[0] * shade)), min(255, int(bg_raw[1] * shade)), min(255, int(bg_raw[2] * shade)))
+
+            # Apply Volumetric Atmospheric Fog
+            if fog_blend > 0.0:
+                fg = _blend_color(fg, weather.fog_color, fog_blend)
+                bg = _blend_color(bg, weather.fog_color, fog_blend)
 
             buffer.set_pixel(screen_x, y, char, fg, bg)
 
@@ -152,12 +216,16 @@ class Raycaster:
         camera: Camera,
         city_map: CityMap,
         day_night: DayNightCycle,
+        weather: Optional[WeatherSystem],
         horizon_y: int,
+        lightning_intensity: float,
+        lightning_col: Tuple[int, int, int],
         buffer: ScreenBuffer
     ):
         zenith_col, horizon_col = day_night.get_sky_gradient()
         ambient = day_night.get_ambient_light()
         is_night = day_night.time_of_day > 20.0 or day_night.time_of_day < 5.0
+        wetness = weather.wetness if weather else 0.0
 
         # Sky rows (above horizon)
         for y in range(0, max(0, min(self.height, horizon_y))):
@@ -167,9 +235,17 @@ class Raycaster:
             b = int(zenith_col[2] + (horizon_col[2] - zenith_col[2]) * t)
             sky_col = (r, g, b)
 
+            # Apply lightning sky flash
+            if lightning_intensity > 0.0:
+                sky_col = _blend_color(sky_col, lightning_col, lightning_intensity * 0.9)
+
+            # Fog atmosphere blending
+            if weather and weather.fog_density > 0.04:
+                sky_col = _blend_color(sky_col, weather.fog_color, min(0.85, weather.fog_density * 6.0))
+
             for x in range(self.width):
                 char = ' '
-                if is_night and ((x * 17 + y * 31) % 67 == 0):
+                if is_night and lightning_intensity < 0.1 and ((x * 17 + y * 31) % 67 == 0):
                     char = '.' if (x + y) % 2 == 0 else '*'
                     buffer.set_pixel(x, y, char, (240, 240, 255), sky_col)
                 else:
@@ -197,6 +273,10 @@ class Raycaster:
             floor_x = camera.pos.x + row_dist * ray_dir_x0
             floor_y = camera.pos.y + row_dist * ray_dir_y0
 
+            floor_fog = 0.0
+            if weather and weather.fog_density > 0:
+                floor_fog = clamp(1.0 - math.exp(-row_dist * weather.fog_density), 0.0, 0.95)
+
             for x in range(self.width):
                 cell_x = int(floor_x)
                 cell_y = int(floor_y)
@@ -215,38 +295,45 @@ class Raycaster:
                         fg = (int(255 * floor_shade), int(220 * floor_shade), int(0 * floor_shade))
                         bg = (int(40 * floor_shade), int(40 * floor_shade), int(45 * floor_shade))
                     else:
-                        char = '.' if (int(floor_x * 4) + int(floor_y * 4)) % 3 == 0 else ' '
-                        fg = (int(80 * floor_shade), int(80 * floor_shade), int(90 * floor_shade))
-                        bg = (int(25 * floor_shade), int(26 * floor_shade), int(30 * floor_shade))
+                        # Wet puddle sheen specular reflection
+                        is_puddle = wetness > 0.1 and (((int(floor_x * 7) ^ int(floor_y * 11)) % 100) < int(wetness * 60))
+                        if is_puddle:
+                            char = '≈' if (int(floor_x * 6) + int(floor_y * 6)) % 2 == 0 else '~'
+                            fg = (min(255, int(180 * floor_shade + horizon_col[0] * 0.4)),
+                                  min(255, int(200 * floor_shade + horizon_col[1] * 0.4)),
+                                  min(255, int(240 * floor_shade + horizon_col[2] * 0.5)))
+                            bg = (min(255, int(50 * floor_shade + horizon_col[0] * 0.2)),
+                                  min(255, int(55 * floor_shade + horizon_col[1] * 0.2)),
+                                  min(255, int(70 * floor_shade + horizon_col[2] * 0.25)))
+                        else:
+                            char = '.' if (int(floor_x * 4) + int(floor_y * 4)) % 3 == 0 else ' '
+                            fg = (int(80 * floor_shade), int(80 * floor_shade), int(90 * floor_shade))
+                            bg = (int(25 * floor_shade), int(26 * floor_shade), int(30 * floor_shade))
                 elif ftype == FloorType.PARK_GRASS:
                     char = '"' if (int(floor_x * 3) + int(floor_y * 3)) % 2 == 0 else ','
                     fg = (int(40 * floor_shade), int(160 * floor_shade), int(60 * floor_shade))
                     bg = (int(15 * floor_shade), int(45 * floor_shade), int(20 * floor_shade))
                 elif ftype == FloorType.PLAZA_TILES:
-                    char = '+' if (int(floor_x * 2) + int(floor_y * 2)) % 2 == 0 else ' '
+                    is_wet_plaza = wetness > 0.2 and (((int(floor_x * 5) + int(floor_y * 5)) % 4) == 0)
+                    char = '·' if is_wet_plaza else ('+' if (int(floor_x * 2) + int(floor_y * 2)) % 2 == 0 else ' ')
                     fg = (int(160 * floor_shade), int(150 * floor_shade), int(140 * floor_shade))
                     bg = (int(50 * floor_shade), int(48 * floor_shade), int(45 * floor_shade))
-                elif ftype == FloorType.WATER:
-                    char = '~' if (int(floor_x * 4) + int(floor_y * 4)) % 2 == 0 else '≈'
-                    fg = (int(100 * floor_shade), int(210 * floor_shade), int(255 * floor_shade))
-                    bg = (int(10 * floor_shade), int(30 * floor_shade), int(65 * floor_shade))
-                elif ftype == FloorType.BRIDGE:
-                    char = '=' if (int(floor_x * 3) + int(floor_y * 3)) % 2 == 0 else '-'
-                    fg = (int(190 * floor_shade), int(160 * floor_shade), int(120 * floor_shade))
-                    bg = (int(40 * floor_shade), int(35 * floor_shade), int(30 * floor_shade))
-                elif ftype == FloorType.COBBLESTONE:
-                    char = 'o' if (int(floor_x * 3) + int(floor_y * 3)) % 2 == 0 else '·'
-                    fg = (int(170 * floor_shade), int(140 * floor_shade), int(120 * floor_shade))
-                    bg = (int(45 * floor_shade), int(35 * floor_shade), int(30 * floor_shade))
-                elif ftype == FloorType.WOOD_DECK:
-                    char = '|' if (int(floor_x * 4)) % 2 == 0 else ' '
-                    fg = (int(160 * floor_shade), int(115 * floor_shade), int(75 * floor_shade))
-                    bg = (int(40 * floor_shade), int(28 * floor_shade), int(18 * floor_shade))
                 else:
                     # Sidewalk concrete tiles
-                    char = '.' if (int(floor_x * 4) + int(floor_y * 4)) % 2 == 0 else '_'
-                    fg = (int(140 * floor_shade), int(140 * floor_shade), int(150 * floor_shade))
-                    bg = (int(45 * floor_shade), int(45 * floor_shade), int(50 * floor_shade))
+                    is_puddle = wetness > 0.2 and (((int(floor_x * 8) + int(floor_y * 8)) % 7) == 0)
+                    if is_puddle:
+                        char = '~'
+                        fg = (min(255, int(160 * floor_shade)), min(255, int(180 * floor_shade)), min(255, int(210 * floor_shade)))
+                        bg = (min(255, int(60 * floor_shade)), min(255, int(65 * floor_shade)), min(255, int(75 * floor_shade)))
+                    else:
+                        char = '.' if (int(floor_x * 4) + int(floor_y * 4)) % 2 == 0 else '_'
+                        fg = (int(140 * floor_shade), int(140 * floor_shade), int(150 * floor_shade))
+                        bg = (int(45 * floor_shade), int(45 * floor_shade), int(50 * floor_shade))
+
+                # Apply floor volumetric fog
+                if floor_fog > 0.0:
+                    fg = _blend_color(fg, weather.fog_color, floor_fog)
+                    bg = _blend_color(bg, weather.fog_color, floor_fog)
 
                 buffer.set_pixel(x, y, char, fg, bg)
                 floor_x += step_x
@@ -258,9 +345,9 @@ class Raycaster:
         sprites: List[Sprite],
         horizon_y: int,
         ambient: float,
+        weather: Optional[WeatherSystem],
         buffer: ScreenBuffer
     ):
-        # Calculate distance squared and filter out sprites behind or too far
         active_sprites: List[Tuple[float, Sprite]] = []
         for spr in sprites:
             dx = spr.x - camera.pos.x
@@ -304,6 +391,10 @@ class Raycaster:
             distance_shade = 1.0 / (1.0 + 0.09 * dist + 0.005 * dist_sq)
             shade = 1.0 if spr.is_luminous else clamp(distance_shade * ambient, 0.15, 1.0)
 
+            fog_blend = 0.0
+            if weather and weather.fog_density > 0 and not spr.is_luminous:
+                fog_blend = clamp(1.0 - math.exp(-dist * weather.fog_density), 0.0, 0.9)
+
             x_start = max(0, draw_x0)
             x_end = min(self.width - 1, draw_x1)
 
@@ -325,5 +416,9 @@ class Raycaster:
                         char = spr.chars[tex_y][tex_x]
                         if char != ' ':  # transparency key
                             fg_raw = spr.fg_colors[tex_y][tex_x]
-                            fg = (int(fg_raw[0] * shade), int(fg_raw[1] * shade), int(fg_raw[2] * shade))
+                            fg = (min(255, int(fg_raw[0] * shade)), min(255, int(fg_raw[1] * shade)), min(255, int(fg_raw[2] * shade)))
+                            
+                            if fog_blend > 0.0:
+                                fg = _blend_color(fg, weather.fog_color, fog_blend)
+
                             buffer.set_pixel(stripe, y, char, fg, None)

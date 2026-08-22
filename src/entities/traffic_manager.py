@@ -18,12 +18,7 @@ class TrafficManager:
         self._spawn_vehicles(vehicle_count)
 
     def _spawn_static_props(self):
-        # Use procedural props if available from CityMap
-        if hasattr(self.city_map, 'props') and self.city_map.props:
-            self.static_props = list(self.city_map.props)
-            return
-
-        # Fallback to manual prop placement
+        # 1. Place Streetlamps at road corners / sidewalks
         for col in self.city_map.ns_road_cols:
             for row in self.city_map.ew_road_rows:
                 # 4 corners around each intersection
@@ -47,15 +42,23 @@ class TrafficManager:
         
         # Spawn cars along North-South Avenues
         for col in self.city_map.ns_road_cols:
+            if len(self.vehicles) >= count:
+                break
             # Lane 1 (going South: +Y)
             self.vehicles.append(Vehicle(col + 0.5, random.uniform(3, self.city_map.height - 4), random.choice(vtypes), (0, 1)))
+            if len(self.vehicles) >= count:
+                break
             # Lane 2 (going North: -Y)
             self.vehicles.append(Vehicle(col + 1.5, random.uniform(3, self.city_map.height - 4), random.choice(vtypes), (0, -1)))
 
         # Spawn cars along East-West Streets
         for row in self.city_map.ew_road_rows:
+            if len(self.vehicles) >= count:
+                break
             # Lane 1 (going East: +X)
             self.vehicles.append(Vehicle(random.uniform(3, self.city_map.width - 4), row + 0.5, random.choice(vtypes), (1, 0)))
+            if len(self.vehicles) >= count:
+                break
             # Lane 2 (going West: -X)
             self.vehicles.append(Vehicle(random.uniform(3, self.city_map.width - 4), row + 1.5, random.choice(vtypes), (-1, 0)))
 
