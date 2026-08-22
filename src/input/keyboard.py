@@ -21,6 +21,8 @@ class KeyAction:
     TOGGLE_MAP = "TOGGLE_MAP"
     TOGGLE_TIME = "TOGGLE_TIME"
     TOGGLE_WEATHER = "TOGGLE_WEATHER"
+    TOGGLE_FLASHLIGHT = "TOGGLE_FLASHLIGHT"
+    TRIGGER_LIGHTNING = "TRIGGER_LIGHTNING"
     HONK_HORN = "HONK_HORN"
     QUIT = "QUIT"
     PAUSE = "PAUSE"
@@ -109,6 +111,10 @@ class KeyboardController:
                 self.pressed_events.append(KeyAction.TOGGLE_TIME)
             elif lower == 'r':
                 self.pressed_events.append(KeyAction.TOGGLE_WEATHER)
+            elif lower == 'f':
+                self.pressed_events.append(KeyAction.TOGGLE_FLASHLIGHT)
+            elif lower == 'l':
+                self.pressed_events.append(KeyAction.TRIGGER_LIGHTNING)
             elif lower == 'h':
                 self.pressed_events.append(KeyAction.HONK_HORN)
             elif lower == 'p':

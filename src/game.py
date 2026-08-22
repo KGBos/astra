@@ -167,8 +167,13 @@ class Game:
             self.day_night.time_of_day = (self.day_night.time_of_day + 4.0) % 24.0
             self.hud.set_notification(f"TIME SKIPPED // {self.day_night.get_time_string()}")
         if self.keyboard.has_event(KeyAction.TOGGLE_WEATHER):
-            self.weather.toggle_weather(self.screen_w, self.screen_h)
-            self.hud.set_notification(f"WEATHER MODE // {self.weather.current_weather.value}")
+            new_w = self.weather.cycle_weather(self.screen_w, self.screen_h)
+            self.hud.set_notification(f"WEATHER MODE // {new_w.value}")
+        if self.keyboard.has_event(KeyAction.TOGGLE_FLASHLIGHT):
+            self.hud.toggle_flashlight()
+        if self.keyboard.has_event(KeyAction.TRIGGER_LIGHTNING):
+            self.weather.trigger_lightning()
+            self.hud.set_notification("⚡ STRIKE! LIGHTNING FLASH INITIATED")
         if self.keyboard.has_event(KeyAction.HONK_HORN):
             self.hud.set_notification("HONK! 📯 CARS ALERTED", duration=2.0)
 
@@ -193,7 +198,7 @@ class Game:
         self.traffic.update(dt)
         self.day_night.update(dt)
         self.weather.update(dt, self.screen_w, self.screen_h)
-        self.hud.update(dt)
+        self.hud.update(dt, self.weather)
 
     def _render_frame(self):
         self.buffer.clear()
@@ -207,7 +212,9 @@ class Game:
             city_map=self.city_map,
             sprites=sprites,
             day_night=self.day_night,
-            buffer=self.buffer
+            buffer=self.buffer,
+            weather=self.weather,
+            flashlight_on=self.hud.flashlight_on
         )
 
         # HUD & Overlays

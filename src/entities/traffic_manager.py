@@ -42,15 +42,23 @@ class TrafficManager:
         
         # Spawn cars along North-South Avenues
         for col in self.city_map.ns_road_cols:
+            if len(self.vehicles) >= count:
+                break
             # Lane 1 (going South: +Y)
             self.vehicles.append(Vehicle(col + 0.5, random.uniform(3, self.city_map.height - 4), random.choice(vtypes), (0, 1)))
+            if len(self.vehicles) >= count:
+                break
             # Lane 2 (going North: -Y)
             self.vehicles.append(Vehicle(col + 1.5, random.uniform(3, self.city_map.height - 4), random.choice(vtypes), (0, -1)))
 
         # Spawn cars along East-West Streets
         for row in self.city_map.ew_road_rows:
+            if len(self.vehicles) >= count:
+                break
             # Lane 1 (going East: +X)
             self.vehicles.append(Vehicle(random.uniform(3, self.city_map.width - 4), row + 0.5, random.choice(vtypes), (1, 0)))
+            if len(self.vehicles) >= count:
+                break
             # Lane 2 (going West: -X)
             self.vehicles.append(Vehicle(random.uniform(3, self.city_map.width - 4), row + 1.5, random.choice(vtypes), (-1, 0)))
 

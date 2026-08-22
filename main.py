@@ -42,7 +42,9 @@ Controls:
   [Space]          Jump
   [M]              Toggle Mini-Map Radar
   [T]              Advance Time of Day
-  [R]              Toggle Weather (Clear / Rain / Fog)
+  [R]              Cycle Weather (Clear / Rain / Storm / Fog / Snow / Acid Rain)
+  [F]              Toggle Tactical Light Beam (Flashlight)
+  [L]              Trigger Lightning Flash Strike
   [H]              Honk Horn
   [Esc] or [X]     Exit
         """

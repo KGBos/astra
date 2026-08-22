@@ -25,15 +25,15 @@ class TestEntities(unittest.TestCase):
         self.assertNotEqual(initial_pos, new_pos)
 
     def test_directional_sprites(self):
-        v = Vehicle(x=10.0, y=10.0, vtype=VehicleType.TAXI, heading_dir=(0, 1))  # moving South
+        v = Vehicle(x=10.0, y=10.0, vtype=VehicleType.TAXI, heading_dir=(0, 1))  # moving South (+Y)
         
-        # Camera behind vehicle (South of vehicle) -> seeing rear
+        # Camera behind vehicle (at 10, 5) -> looking South at car's back -> seeing rear
         spr_rear = v.get_sprite_for_camera(cam_x=10.0, cam_y=5.0)
-        self.assertEqual(spr_rear.name, "CAR_FRONT")  # camera at (10, 5) looking at car moving towards (10, 11) => facing camera!
+        self.assertEqual(spr_rear.name, "CAR_REAR")
 
-        # Camera ahead of vehicle (at 10, 15) -> seeing front
+        # Camera ahead of vehicle (at 10, 15) -> looking North at car's front -> seeing front
         spr_front = v.get_sprite_for_camera(cam_x=10.0, cam_y=15.0)
-        self.assertIn("CAR", spr_front.name)
+        self.assertEqual(spr_front.name, "CAR_FRONT")
 
     def test_static_props_created(self):
         self.assertGreater(len(self.traffic.static_props), 15)
