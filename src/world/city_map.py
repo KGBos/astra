@@ -2,6 +2,7 @@
 Procedural City Map, District Grid, Road Topology, and Traffic Light Controller for Astra 3D.
 """
 
+import math
 from enum import IntEnum
 from typing import List, Tuple, Optional, Dict
 from src.world.textures import get_texture
@@ -85,7 +86,23 @@ class CityMap:
             36: "Industrial Avenue"
         }
 
+        # Building Portals for Interior Exploration
+        from src.world.interiors import InteriorPortal
+        self.portals: Dict[Tuple[int, int], InteriorPortal] = {
+            (22, 6): InteriorPortal(22.5, 6.5, "RAMEN_SHOP", "Kaito's 24H Cyber Ramen", "🍜"),
+            (30, 6): InteriorPortal(30.5, 6.5, "HOTEL_LOBBY", "The Grand Astra Hotel", "🏨"),
+            (34, 14): InteriorPortal(34.5, 14.5, "ARCADE", "Neon Matrix Cyber Arcade", "🕹️"),
+        }
+
         self._generate_city()
+
+    def get_nearby_portal(self, x: float, y: float, max_dist: float = 1.8):
+        ix = int(x)
+        iy = int(y)
+        for (px, py), portal in self.portals.items():
+            if math.hypot(x - portal.outdoor_x, y - portal.outdoor_y) <= max_dist or (abs(ix - px) <= 1 and abs(iy - py) <= 1):
+                return portal
+        return None
 
     def _generate_city(self):
         # 1. Build Perimeter Boundary Walls (Industrial / Security Wall)

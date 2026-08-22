@@ -128,10 +128,17 @@ class Raycaster:
         draw_start = int(horizon_y - line_height / 2.0)
         draw_end = int(horizon_y + line_height / 2.0)
 
-        # Distance attenuation and side shading (North/South side gets directional shadow)
+        # Distance attenuation, side shading, and active headlights beam
         side_mult = 0.82 if hit.side == 1 else 1.0
         distance_shade = (1.0 / (1.0 + 0.08 * hit.perp_wall_dist + 0.005 * hit.perp_wall_dist * hit.perp_wall_dist))
-        shade = clamp(distance_shade * ambient * side_mult, 0.1, 1.0)
+        
+        headlight_boost = 0.0
+        if getattr(camera, 'headlights_on', True):
+            cone_factor = max(0.0, 1.0 - abs(screen_x - self.width / 2.0) / (self.width * 0.45))
+            if hit.perp_wall_dist < 18.0:
+                headlight_boost = cone_factor * (1.0 - hit.perp_wall_dist / 18.0) * 0.75
+
+        shade = clamp((distance_shade * ambient + headlight_boost) * side_mult, 0.1, 1.0)
 
         y0 = max(0, draw_start)
         y1 = min(self.height - 1, draw_end)

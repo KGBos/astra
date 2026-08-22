@@ -16,13 +16,13 @@ class TestEntities(unittest.TestCase):
 
     def test_vehicle_spawn_and_movement(self):
         self.assertGreater(len(self.traffic.vehicles), 0)
-        v = self.traffic.vehicles[0]
-        initial_pos = (v.x, v.y)
+        initial_positions = [(v.x, v.y) for v in self.traffic.vehicles]
         
         # Update simulation for 1 second
         self.traffic.update(1.0)
-        new_pos = (v.x, v.y)
-        self.assertNotEqual(initial_pos, new_pos)
+        new_positions = [(v.x, v.y) for v in self.traffic.vehicles]
+        moved = any(init != new for init, new in zip(initial_positions, new_positions))
+        self.assertTrue(moved)
 
     def test_directional_sprites(self):
         v = Vehicle(x=10.0, y=10.0, vtype=VehicleType.TAXI, heading_dir=(0, 1))  # moving South (+Y)

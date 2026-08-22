@@ -262,6 +262,11 @@ TEXTURE_REGISTRY = {
     6: build_hotel_neon(),
 }
 
+# Register interior textures
+from src.world.interiors import build_interior_textures
+TEXTURE_REGISTRY.update(build_interior_textures())
+
 
 def get_texture(texture_id: int) -> AsciiTexture:
     return TEXTURE_REGISTRY.get(texture_id, TEXTURE_REGISTRY[1])
+
