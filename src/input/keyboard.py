@@ -21,6 +21,8 @@ class KeyAction:
     TOGGLE_MAP = "TOGGLE_MAP"
     TOGGLE_TIME = "TOGGLE_TIME"
     TOGGLE_WEATHER = "TOGGLE_WEATHER"
+    REGENERATE_CITY = "REGENERATE_CITY"
+    CYCLE_LANDMARKS = "CYCLE_LANDMARKS"
     HONK_HORN = "HONK_HORN"
     QUIT = "QUIT"
     PAUSE = "PAUSE"
@@ -109,6 +111,10 @@ class KeyboardController:
                 self.pressed_events.append(KeyAction.TOGGLE_TIME)
             elif lower == 'r':
                 self.pressed_events.append(KeyAction.TOGGLE_WEATHER)
+            elif lower in ('g', 'n'):
+                self.pressed_events.append(KeyAction.REGENERATE_CITY)
+            elif lower == 'l':
+                self.pressed_events.append(KeyAction.CYCLE_LANDMARKS)
             elif lower == 'h':
                 self.pressed_events.append(KeyAction.HONK_HORN)
             elif lower == 'p':

@@ -169,6 +169,23 @@ class Game:
         if self.keyboard.has_event(KeyAction.TOGGLE_WEATHER):
             self.weather.toggle_weather(self.screen_w, self.screen_h)
             self.hud.set_notification(f"WEATHER MODE // {self.weather.current_weather.value}")
+        if self.keyboard.has_event(KeyAction.REGENERATE_CITY):
+            new_seed = random.randint(100000, 999999)
+            self.city_map = CityMap(width=self.city_map.width, height=self.city_map.height, seed=new_seed)
+            self.traffic = TrafficManager(self.city_map)
+            self.camera.pos.x, self.camera.pos.y = self.city_map.spawn_pos
+            self.hud.set_notification(f"METROPOLIS RE-SYNTHESIZED // SEED #{new_seed}", duration=4.0)
+        if self.keyboard.has_event(KeyAction.CYCLE_LANDMARKS):
+            if not hasattr(self, '_landmark_idx'):
+                self._landmark_idx = 0
+            else:
+                self._landmark_idx = (self._landmark_idx + 1) % max(1, len(self.city_map.landmarks))
+            if self.city_map.landmarks:
+                lm = self.city_map.landmarks[self._landmark_idx]
+                dist = lm.distance_to(self.camera.pos.x, self.camera.pos.y)
+                bearing = lm.bearing_from(self.camera.pos.x, self.camera.pos.y)
+                desc = lm.description if len(lm.description) <= 35 else lm.description[:32] + "..."
+                self.hud.set_notification(f"★ [{lm.district}] {lm.name} ({dist:.0f}m {bearing}) - {desc}", duration=4.0)
         if self.keyboard.has_event(KeyAction.HONK_HORN):
             self.hud.set_notification("HONK! 📯 CARS ALERTED", duration=2.0)
 

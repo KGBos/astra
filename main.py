@@ -40,9 +40,11 @@ Controls:
   [I / K]          Look Up / Look Down (Pitch)
   [Shift + W]      Sprint
   [Space]          Jump
+  [G] or [N]       Procedurally Re-synthesize New City
+  [L]              Cycle & Inspect City Landmarks (POI)
   [M]              Toggle Mini-Map Radar
   [T]              Advance Time of Day
-  [R]              Toggle Weather (Clear / Rain / Fog)
+  [R]              Toggle Weather (Clear / Rain)
   [H]              Honk Horn
   [Esc] or [X]     Exit
         """
@@ -50,6 +52,7 @@ Controls:
     parser.add_argument("--fps", type=int, default=30, help="Target FPS limit (default: 30)")
     parser.add_argument("--width", type=int, default=80, help="Viewport width in characters (auto-detects if omitted)")
     parser.add_argument("--height", type=int, default=32, help="Viewport height in characters (auto-detects if omitted)")
+    parser.add_argument("--seed", type=str, default=None, help="Procedural world seed (integer or string)")
     parser.add_argument("--no-color", action="store_true", help="Disable TrueColor ANSI output (monochrome mode)")
     parser.add_argument("--demo", action="store_true", help="Launch autonomous city tour mode")
     parser.add_argument("--benchmark", action="store_true", help="Run 3D rendering benchmark and exit")
@@ -67,6 +70,10 @@ Controls:
         use_color=not args.no_color,
         demo_mode=args.demo
     )
+    if args.seed:
+        game.city_map = CityMap(width=game.city_map.width, height=game.city_map.height, seed=args.seed)
+        game.traffic = TrafficManager(game.city_map)
+        game.camera.pos.x, game.camera.pos.y = game.city_map.spawn_pos
 
     try:
         game.run()
