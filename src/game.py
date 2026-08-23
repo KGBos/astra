@@ -12,6 +12,7 @@ from src.world.city_map import CityMap
 from src.world.day_night import DayNightCycle
 from src.world.weather import WeatherSystem, WeatherType
 from src.entities.traffic_manager import TrafficManager
+from src.entities.pedestrian_manager import PedestrianManager
 from src.renderer.screen_buffer import ScreenBuffer
 from src.renderer.hud import HUD
 from src.renderer.terminal import TerminalManager
@@ -44,6 +45,7 @@ class Game:
         self.camera.set_direction(math.pi / 2.0)  # Face South (+Y) down avenue
 
         self.traffic = TrafficManager(self.city_map, vehicle_count=18)
+        self.pedestrians = PedestrianManager(self.city_map, pedestrian_count=28)
         self.day_night = DayNightCycle(start_hour=22.5, time_speed=0.4)
         self.weather = WeatherSystem(weather=WeatherType.CLEAR)
         
@@ -173,6 +175,7 @@ class Game:
             new_seed = random.randint(100000, 999999)
             self.city_map = CityMap(width=self.city_map.width, height=self.city_map.height, seed=new_seed)
             self.traffic = TrafficManager(self.city_map)
+            self.pedestrians = PedestrianManager(self.city_map, pedestrian_count=28)
             self.camera.pos.x, self.camera.pos.y = self.city_map.spawn_pos
             self.hud.set_notification(f"METROPOLIS RE-SYNTHESIZED // SEED #{new_seed}", duration=4.0)
         if self.keyboard.has_event(KeyAction.CYCLE_LANDMARKS):
@@ -186,8 +189,15 @@ class Game:
                 bearing = lm.bearing_from(self.camera.pos.x, self.camera.pos.y)
                 desc = lm.description if len(lm.description) <= 35 else lm.description[:32] + "..."
                 self.hud.set_notification(f"★ [{lm.district}] {lm.name} ({dist:.0f}m {bearing}) - {desc}", duration=4.0)
+        if self.keyboard.has_event(KeyAction.INTERACT):
+            talk_res = self.pedestrians.interact_with_focused(self.camera.pos.x, self.camera.pos.y, self.camera.dir.x, self.camera.dir.y)
+            if talk_res:
+                archetype, quote = talk_res
+                arch_name = archetype.replace('_', ' ').title()
+                self.hud.set_notification(f"💬 [{arch_name}]: \"{quote}\"", duration=4.5)
         if self.keyboard.has_event(KeyAction.HONK_HORN):
-            self.hud.set_notification("HONK! 📯 CARS ALERTED", duration=2.0)
+            self.pedestrians.alert_nearby(self.camera.pos.x, self.camera.pos.y)
+            self.hud.set_notification("HONK! 📯 CITIZENS & CARS ALERTED", duration=2.0)
 
     def _update_demo_camera(self, dt: float):
         """Smooth autonomous city tour for demo mode."""
@@ -208,15 +218,25 @@ class Game:
         self.camera.update_physics(dt)
         self.city_map.update(dt)
         self.traffic.update(dt)
+        self.pedestrians.update(dt)
         self.day_night.update(dt)
         self.weather.update(dt, self.screen_w, self.screen_h)
+
+        # Check focused pedestrian for interaction prompt
+        focused_ped = self.pedestrians.get_focused_pedestrian(self.camera.pos.x, self.camera.pos.y, self.camera.dir.x, self.camera.dir.y)
+        if focused_ped:
+            self.hud.interaction_prompt = f"[F] Talk with {focused_ped.archetype.value.replace('_', ' ').title()}"
+        else:
+            self.hud.interaction_prompt = None
+
         self.hud.update(dt)
 
     def _render_frame(self):
         self.buffer.clear()
         
-        # Collect dynamic sprites
-        sprites = self.traffic.get_all_sprites_for_camera(self.camera.pos.x, self.camera.pos.y)
+        # Collect dynamic sprites (traffic vehicles, static props, and pedestrians)
+        sprites = self.traffic.get_all_sprites_for_camera(self.camera.pos.x, self.camera.pos.y) + \
+                  self.pedestrians.get_all_sprites_for_camera(self.camera.pos.x, self.camera.pos.y)
 
         # 3D Raycasting & projection
         self.raycaster.render(

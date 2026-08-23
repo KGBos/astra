@@ -82,10 +82,16 @@ class HUD:
         if self.show_minimap and w >= 60 and h >= 20:
             self._render_minimap(camera, city_map, sprites, buffer)
 
-        # 5. Bottom Navigation & Status Bar
+        # 5. Pedestrian Interaction Prompt (above bottom bar)
+        if hasattr(self, 'interaction_prompt') and self.interaction_prompt:
+            p_text = f" 💬 {self.interaction_prompt} "
+            px = max(0, (w - len(p_text)) // 2)
+            buffer.draw_string(px, h - 3, p_text, (255, 240, 100), (30, 35, 50))
+
+        # 6. Bottom Navigation & Status Bar
         speed_gauge = "█" * int(min(10, (camera.move_speed * (camera.sprint_mult if camera.is_jumping or camera.bob_amount > 0 else 1.0))))
         bot_left = f" POS: X:{camera.pos.x:4.1f} Y:{camera.pos.y:4.1f} │ SEED: #{city_map.seed} │ SPEED: [{speed_gauge:<10}]"
-        bot_right = "[WASD] Move │ [←→/QE] Turn │ [G] New City │ [L] POI │ [M] Map │ [T] Time │ [R] Rain │ [Esc] Quit "
+        bot_right = "[WASD] Move │ [F] Talk │ [H] Horn │ [G] New City │ [L] POI │ [M] Map │ [T] Time │ [Esc] Quit "
 
         # Draw Bottom Bar background
         for x in range(w):
@@ -93,7 +99,7 @@ class HUD:
         buffer.draw_string(0, h - 1, bot_left[:w - len(bot_right) - 1], (180, 220, 255), (15, 20, 30))
         buffer.draw_string(max(0, w - len(bot_right)), h - 1, bot_right, (150, 180, 210), (15, 20, 30))
 
-        # 6. Weather Overlay (Rain particles)
+        # 7. Weather Overlay (Rain particles)
         if weather.current_weather == weather.current_weather.RAIN:
             for p in weather.particles:
                 px = int(p.x)
@@ -154,7 +160,7 @@ class HUD:
                 blip_y = center_screen_y + ldy
                 buffer.set_pixel(blip_x, blip_y, '★', (255, 220, 50), (10, 15, 25))
 
-        # Draw vehicle / sprite blips on radar
+        # Draw vehicle / pedestrian / sprite blips on radar
         for spr in sprites:
             sdx = int(spr.x - camera.pos.x)
             sdy = int(spr.y - camera.pos.y)
@@ -163,6 +169,8 @@ class HUD:
                 blip_y = center_screen_y + sdy
                 if "CAR" in spr.name:
                     buffer.set_pixel(blip_x, blip_y, 'o', (255, 220, 0), (10, 15, 25))
+                elif "PED_" in spr.name:
+                    buffer.set_pixel(blip_x, blip_y, 'i', (0, 255, 200), (10, 15, 25))
                 elif "STREETLAMP" in spr.name:
                     buffer.set_pixel(blip_x, blip_y, '*', (255, 255, 120), (10, 15, 25))
 
