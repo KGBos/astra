@@ -195,3 +195,4 @@ def make_bollard_sprite(x: float, y: float) -> Sprite:
         [(90, 90, 100) for _ in range(3)]
     ]
     return Sprite(x, y, "BOLLARD", chars, fg, scale_x=0.3, scale_y=0.4)
+

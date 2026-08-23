@@ -4,7 +4,7 @@
 | Platform | Member | Current Active Task | Status | Updated |
 | :--- | :--- | :--- | :--- | :--- |
 | **Antigravity** | **Marcus Vance** 🏙️ | Shipped M2 in `.worktrees/marcus-vance`: Driving Mode, Interiors, NPCs & Radio (22/22 Tests, 254 FPS) | ✅ Complete | Shift 2 |
-| **Antigravity** | **Darius Thorne** 📐 | Shipped Pedestrian & Crowd AI in `.worktrees/darius-pedestrians` (32/32 Tests, 257 FPS) | ✅ Complete | Shift 2 |
+| **Antigravity** | **Darius Thorne** 📐 | Delivered Procedural City Generator, District Partitioner & Road Graph Engine | 🚀 Active | Shift 1 |
 | **Antigravity** | **Valerie Sterling** ⚡ | Drivable Vehicle Cockpit Mode, Weather FX (6 Modes) & Zero-Dependency Audio Engine | 🚀 Active | Shift 3 |
 
 ---

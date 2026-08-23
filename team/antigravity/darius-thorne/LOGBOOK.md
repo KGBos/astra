@@ -19,6 +19,25 @@
     - Added interactive hotkeys: `[G]` or `[N]` for instant procedural city re-synthesis with random seed, `[L]` to cycle & inspect City Landmarks.
     - Added `--seed` argument to `main.py` CLI.
   - **Quality & Performance Verification**:
-    - Created comprehensive unit test suite `tests/test_procedural_gen.py` (9 tests covering seed reproducibility, variation, graph routing, POI queries, dimension scaling, and performance).
-    - All 24 unit tests passing in 0.06s.
-    - Benchmarked engine at 265+ FPS.
+    - Created comprehensive unit test suite `tests/test_procedural_gen.py` (9 tests).
+    - Merged clean into `master`.
+
+## Shift 2 — Autonomous Sidewalk Pedestrian & Crowd AI Delivery
+- **Worktree**: `/Users/leon/lab/astra/.worktrees/darius-pedestrians` (`feat/pedestrian-crowd-ai`)
+- **Key Deliverables**:
+  - **Pedestrian Simulation & AI State Machine (`src/entities/pedestrian.py`)**:
+    - 6 Archetypes: `CYBERPUNK`, `CORP_SUIT`, `STREET_VENDOR`, `CYBER_ANDROID`, `CASUAL_CITIZEN`, `POLICE_OFFICER`.
+    - 5 Behavioral States: `WALKING`, `WAITING_AT_CROSSWALK`, `CROSSING_STREET`, `SITTING`, `BROWSING_SHOP`.
+    - Directional 3D animated ASCII sprites with 2-frame walking cycle strides, sitting postures, and tailored TrueColor RGB palettes.
+    - Safe road crossing AI synchronized with intersection traffic lights.
+    - Acoustic reactions to vehicle / player horn honking (`[H]`).
+  - **Crowd Manager & Proximity Dialogue System (`src/entities/pedestrian_manager.py`)**:
+    - District-weighted crowd population spawning across all sidewalk networks.
+    - Player line-of-sight focus detection with dynamic prompt: `[F] Talk with <Archetype>`.
+    - Interactive speech bubble notifications with 30+ thematic archetype dialogue quotes.
+  - **HUD Radar Blips (`src/renderer/hud.py`)**:
+    - Pedestrians rendered as dynamic blips (`i`) in electric cyan/mint on the GPS minimap.
+  - **Testing & Benchmarks**:
+    - Created `tests/test_pedestrians.py` (8 new test cases).
+    - Full test suite: **32 / 32 tests passing** (100%).
+    - Benchmarked at **257.5 FPS** sustained throughput.
