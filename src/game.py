@@ -27,10 +27,16 @@ class Game:
         height: int = 32,
         target_fps: int = 30,
         use_color: bool = True,
+        use_background: bool = True,
         demo_mode: bool = False
     ):
         self.target_fps = target_fps
         self.frame_time = 1.0 / target_fps
+        # Hybrid limiter spin window: proportional to the frame budget so the
+        # busy-wait slice absorbs macOS timer-coalescing oversleep (wakeups
+        # quantize to ~2.5ms scheduler ticks, so the window must clear one
+        # tick plus slack) without burning a growing CPU share at high targets
+        self._spin_window = min(0.005, max(0.0008, self.frame_time * 0.15))
         self.running = False
         self.demo_mode = demo_mode
         self.demo_timer = 0.0
@@ -55,7 +61,7 @@ class Game:
         # Rendering
         self.screen_w = width
         self.screen_h = height
-        self.buffer = ScreenBuffer(width, height, use_color=use_color)
+        self.buffer = ScreenBuffer(width, height, use_color=use_color, use_background=use_background)
         self.raycaster = Raycaster(width, height)
         self.hud = HUD(show_minimap=True)
 
@@ -63,7 +69,7 @@ class Game:
         self.fps = float(target_fps)
         self.frame_count = 0
         self.total_frames = 0
-        self.last_fps_calc = time.time()
+        self.last_fps_calc = time.monotonic()
 
     def regenerate_city(self, seed=None) -> None:
         """Rebuilds the procedural city, traffic, and pedestrians for a given seed (random if None)."""
@@ -83,10 +89,10 @@ class Game:
             tw, th = self.terminal.get_size()
             self._resize_viewport(tw, th)
 
-            last_time = time.time()
+            last_time = time.monotonic()
 
             while self.running:
-                loop_start = time.time()
+                loop_start = time.monotonic()
                 dt = min(0.1, loop_start - last_time)
                 last_time = loop_start
 
@@ -112,17 +118,21 @@ class Game:
                 # 6. FPS Calculation
                 self.frame_count += 1
                 self.total_frames += 1
-                now = time.time()
+                now = time.monotonic()
                 if now - self.last_fps_calc >= 0.5:
                     self.fps = self.frame_count / (now - self.last_fps_calc)
                     self.frame_count = 0
                     self.last_fps_calc = now
 
-                # 7. Frame Limiter
-                elapsed = time.time() - loop_start
-                sleep_time = self.frame_time - elapsed
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
+                # 7. Frame Limiter: coarse sleep, then short spin for a
+                # locked framerate immune to OS scheduler oversleep jitter
+                deadline = loop_start + self.frame_time
+                remaining = deadline - time.monotonic()
+                if remaining > 0:
+                    if remaining > self._spin_window:
+                        time.sleep(remaining - self._spin_window)
+                    while time.monotonic() < deadline:
+                        pass
 
                 if max_frames and self.total_frames >= max_frames:
                     break
@@ -166,6 +176,17 @@ class Game:
             self.camera.rotate(-self.camera.rot_speed * dt)
         elif self.keyboard.is_action_active(KeyAction.TURN_RIGHT):
             self.camera.rotate(self.camera.rot_speed * dt)
+
+        # Mouse look: drag deltas rotate instantly, wheel nudges pitch
+        mdx, mdy = self.keyboard.pop_mouse_delta()
+        if mdx != 0:
+            self.camera.rotate(mdx * 0.045)
+        if mdy != 0:
+            self.camera.pitch_look(-mdy * 1.2)
+        if self.keyboard.has_event(KeyAction.WHEEL_UP):
+            self.camera.pitch_look(2.0)
+        elif self.keyboard.has_event(KeyAction.WHEEL_DOWN):
+            self.camera.pitch_look(-2.0)
 
         # Pitch
         if self.keyboard.is_action_active(KeyAction.LOOK_UP):

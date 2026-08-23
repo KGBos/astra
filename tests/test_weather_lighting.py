@@ -27,6 +27,10 @@ class TestWeatherAndLighting(unittest.TestCase):
 
     def test_weather_particle_physics_and_wrapping(self):
         particle = WeatherParticle(80, 32, WeatherType.RAIN)
+        # Pin spawn state so the first step can never cross the bottom wrap
+        # boundary (random spawns above ~y=27 wrapped and broke this assertion)
+        particle.y = 0.0
+        particle.speed_y = 30.0
         initial_y = particle.y
         particle.update(dt=0.1, screen_w=80, screen_h=32, wind_x=5.0)
         self.assertGreater(particle.y, initial_y)

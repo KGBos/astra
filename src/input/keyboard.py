@@ -1,11 +1,19 @@
 """
-Non-blocking Keyboard input poller and ANSI escape sequence parser for Astra 3D.
+Non-blocking Keyboard input poller, ANSI escape sequence parser, and SGR mouse tracker for Astra 3D.
 """
 
+import os
 import sys
 import select
 import time
 from typing import Optional, Set, List
+
+
+MOUSE_CLICK_MOVE_CELLS = 4
+
+# Max bytes drained from the tty per poll; generous enough to swallow a full
+# frame of burst mouse reports in a single syscall
+_READ_CHUNK = 4096
 
 
 class KeyAction:
@@ -29,6 +37,8 @@ class KeyAction:
     TOGGLE_FLASHLIGHT = "TOGGLE_FLASHLIGHT"
     QUIT = "QUIT"
     PAUSE = "PAUSE"
+    WHEEL_UP = "WHEEL_UP"
+    WHEEL_DOWN = "WHEEL_DOWN"
 
 
 class KeyboardController:
@@ -40,19 +50,43 @@ class KeyboardController:
         self.last_input_time: float = 0.0
         self.DECAY_SECONDS = 0.25
 
+        # Mouse tracking state (SGR cells)
+        self.mouse_x: int = -1
+        self.mouse_y: int = -1
+        self.mouse_dx: int = 0
+        self.mouse_dy: int = 0
+        self._dragging: bool = False
+        self._down_moved: int = 0
+
     def poll_input(self):
         """Non-blocking read of all available stdin bytes and updates action states."""
         now = time.monotonic()
         chars = []
+        try:
+            fd = sys.stdin.fileno()
+        except Exception:
+            fd = None
+
         while True:
-            r, _, _ = select.select([sys.stdin], [], [], 0.0)
+            try:
+                r, _, _ = select.select([sys.stdin], [], [], 0.0)
+            except (OSError, ValueError):
+                break
             if not r:
                 break
             try:
-                ch = sys.stdin.read(1)
-                if not ch:
-                    break
-                chars.append(ch)
+                if fd is not None:
+                    # One syscall drains the whole kernel buffer instead of a
+                    # select+read pair per byte (critical during mouse-drag bursts)
+                    chunk = os.read(fd, _READ_CHUNK)
+                    if not chunk:
+                        break
+                    chars.extend(chunk.decode('utf-8', 'replace'))
+                else:
+                    ch = sys.stdin.read(1)
+                    if not ch:
+                        break
+                    chars.append(ch)
             except Exception:
                 break
 
@@ -85,26 +119,38 @@ class KeyboardController:
 
             if ch == '\033':  # Escape sequence
                 if i + 1 < n and chars[i + 1] == '[':
-                    if i + 2 < n:
-                        code = chars[i + 2]
-                        if code == 'A':  # Up Arrow
-                            self.active_actions.add(KeyAction.MOVE_FORWARD)
-                            self.pressed_events.append(KeyAction.MOVE_FORWARD)
-                        elif code == 'B':  # Down Arrow
-                            self.active_actions.add(KeyAction.MOVE_BACKWARD)
-                            self.pressed_events.append(KeyAction.MOVE_BACKWARD)
-                        elif code == 'C':  # Right Arrow
-                            self.active_actions.add(KeyAction.TURN_RIGHT)
-                            self.pressed_events.append(KeyAction.TURN_RIGHT)
-                        elif code == 'D':  # Left Arrow
-                            self.active_actions.add(KeyAction.TURN_LEFT)
-                            self.pressed_events.append(KeyAction.TURN_LEFT)
-                        i += 3
+                    if i + 2 >= n:
+                        self._pending = chars[i:]
+                        self._pending_time = now
+                        break
+                    code = chars[i + 2]
+                    if code == '<':
+                        end = -1
+                        for j in range(i + 3, n):
+                            if chars[j] in ('M', 'm'):
+                                end = j
+                                break
+                        if end < 0:
+                            self._pending = chars[i:]
+                            self._pending_time = now
+                            break
+                        self._handle_sgr_mouse(''.join(chars[i + 3:end]), chars[end])
+                        i = end + 1
                         continue
-                    # Split escape sequence across polls: stash tail for next batch
-                    self._pending = chars[i:]
-                    self._pending_time = now
-                    break
+                    if code == 'A':  # Up Arrow
+                        self.active_actions.add(KeyAction.MOVE_FORWARD)
+                        self.pressed_events.append(KeyAction.MOVE_FORWARD)
+                    elif code == 'B':  # Down Arrow
+                        self.active_actions.add(KeyAction.MOVE_BACKWARD)
+                        self.pressed_events.append(KeyAction.MOVE_BACKWARD)
+                    elif code == 'C':  # Right Arrow
+                        self.active_actions.add(KeyAction.TURN_RIGHT)
+                        self.pressed_events.append(KeyAction.TURN_RIGHT)
+                    elif code == 'D':  # Left Arrow
+                        self.active_actions.add(KeyAction.TURN_LEFT)
+                        self.pressed_events.append(KeyAction.TURN_LEFT)
+                    i += 3
+                    continue
                 if i == n - 1:
                     # Trailing Escape byte may be the head of a split sequence
                     self._pending = ['\033']
@@ -161,6 +207,53 @@ class KeyboardController:
                 self.active_actions.add(KeyAction.SPRINT)
 
             i += 1
+
+    def _handle_sgr_mouse(self, params: str, final: str):
+        """Handles an SGR mouse report: params is 'b;x;y', final is 'M' (press/motion) or 'm' (release)."""
+        try:
+            parts = params.split(';')
+            b, x, y = int(parts[0]), int(parts[1]), int(parts[2])
+        except (ValueError, IndexError):
+            return
+
+        pressed = final == 'M'
+        motion = bool(b & 32)
+        btn = b & 3
+        wheel = b >= 64
+
+        if wheel:
+            if pressed:
+                self.pressed_events.append(KeyAction.WHEEL_UP if btn == 0 else KeyAction.WHEEL_DOWN)
+            self.mouse_x, self.mouse_y = x, y
+            return
+
+        if motion:
+            if self._dragging:
+                if self.mouse_x >= 0:
+                    self.mouse_dx += x - self.mouse_x
+                    self.mouse_dy += y - self.mouse_y
+                    self._down_moved += abs(x - self.mouse_x) + abs(y - self.mouse_y)
+        elif pressed:
+            self._dragging = True
+            self._down_moved = 0
+        else:
+            if self._dragging and self._down_moved < MOUSE_CLICK_MOVE_CELLS:
+                if btn == 0:
+                    self.pressed_events.append(KeyAction.INTERACT)
+                elif btn == 1:
+                    self.pressed_events.append(KeyAction.JUMP)
+                elif btn == 2:
+                    self.pressed_events.append(KeyAction.TOGGLE_FLASHLIGHT)
+            self._dragging = False
+
+        self.mouse_x, self.mouse_y = x, y
+
+    def pop_mouse_delta(self):
+        """Returns and clears accumulated drag-look movement in terminal cells."""
+        dx, dy = self.mouse_dx, self.mouse_dy
+        self.mouse_dx = 0
+        self.mouse_dy = 0
+        return (dx, dy)
 
     def is_action_active(self, action: str) -> bool:
         return action in self.active_actions

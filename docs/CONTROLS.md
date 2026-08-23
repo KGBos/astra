@@ -16,6 +16,17 @@
 
 ---
 
+## Mouse Controls
+| Action | Input | Description |
+| :--- | :--- | :--- |
+| **Look Around** | `Left-drag` | Drag mouse to turn yaw and pitch the camera |
+| **Talk** | `Left-click` | Interact with focused pedestrian |
+| **Tactical Beam** | `Right-click` | Toggle flashlight beam |
+| **Jump** | `Middle-click` | Jump with gravity simulation |
+| **Look Up / Down** | `Scroll Wheel` | Nudge camera pitch |
+
+---
+
 ## World Interaction & HUD Shortcuts
 | Action | Key | Description |
 | :--- | :--- | :--- |
@@ -41,6 +52,9 @@ python3 main.py --benchmark
 # Launch with custom locked framerate or viewport size
 python3 main.py --fps 60 --width 100 --height 40
 
-# Launch in monochrome mode (no ANSI colors)
+# Launch in pure-ASCII monochrome mode (no ANSI colors, ASCII-only glyphs)
 python3 main.py --no-color
+
+# Launch with colored glyphs on your terminal's own background (no block fills)
+python3 main.py --no-fill
 ```

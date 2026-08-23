@@ -36,6 +36,9 @@ def main():
         epilog="""
 Controls:
   [W/A/S/D]        Move forward / Strafe left / Move back / Strafe right
+  [Mouse Drag]     Look around (yaw + pitch)
+  [Left Click]     Talk to nearby pedestrian
+  [Right Click]    Toggle Tactical Beam
   [Q / E] or [← / →] Turn Left / Turn Right
   [I / K]          Look Up / Look Down (Pitch)
   [Shift + W]      Sprint
@@ -55,7 +58,8 @@ Controls:
     parser.add_argument("--width", type=int, default=80, help="Viewport width in characters (auto-detects if omitted)")
     parser.add_argument("--height", type=int, default=32, help="Viewport height in characters (auto-detects if omitted)")
     parser.add_argument("--seed", type=str, default=None, help="Procedural world seed (integer or string)")
-    parser.add_argument("--no-color", action="store_true", help="Disable TrueColor ANSI output (monochrome mode)")
+    parser.add_argument("--no-color", action="store_true", help="Disable TrueColor ANSI output (pure ASCII mode)")
+    parser.add_argument("--no-fill", action="store_true", help="Colored glyphs on the default terminal background (no background block fills)")
     parser.add_argument("--demo", action="store_true", help="Launch autonomous city tour mode")
     parser.add_argument("--benchmark", action="store_true", help="Run 3D rendering benchmark and exit")
 
@@ -70,6 +74,7 @@ Controls:
         height=args.height,
         target_fps=args.fps,
         use_color=not args.no_color,
+        use_background=not args.no_fill,
         demo_mode=args.demo
     )
     if args.seed:

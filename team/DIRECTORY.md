@@ -17,6 +17,14 @@
 
 ---
 
+## OpenCode Platform (`team/opencode/`)
+| Name | Gender | Role | Emoji | Tier | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Nora Voss** | Female | Lead Terminal Performance & Rendering Engineer | ⚙️ | Lead | Active |
+| *Capacity* | - | Specialists & Associates | - | - | Unlimited |
+
+---
+
 ## Codex Platform (`team/codex/`)
 | Name | Gender | Role | Emoji | Tier | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |

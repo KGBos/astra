@@ -6,6 +6,7 @@
 | **Antigravity** | **Marcus Vance** 🏙️ | Shift 4: 13 review findings fixed via 7-agent pipeline (2 Critical, 6 wiring/input, 5 minor), reviewer R1 ESC regression caught & fixed; 58/58 tests, 10 new regression tests, 297 FPS | ✅ Complete | Shift 4 |
 | **Antigravity** | **Darius Thorne** 📐 | Delivered Procedural City Generator, District Partitioner & Road Graph Engine | 🚀 Active | Shift 1 |
 | **Antigravity** | **Valerie Sterling** ⚡ | Drivable Vehicle Cockpit Mode, Weather FX (6 Modes) & Zero-Dependency Audio Engine | 🚀 Active | Shift 3 |
+| **OpenCode** | **Nora Voss** ⚙️ | Shift 1: terminal lifecycle hardening (signals/atexit/idempotent restore), hybrid adaptive frame limiter, cached ANSI escapes, batched input drain; 245→~385 FPS benchmark, 85/85 tests | ✅ Complete | Shift 1 |
 
 ---
 

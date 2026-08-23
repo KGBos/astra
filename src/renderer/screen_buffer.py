@@ -5,6 +5,17 @@ Virtual Screen Buffer and optimized TrueColor ANSI escape generator for Astra 3D
 from typing import List, Tuple, Optional
 
 
+ASCII_TRANSLATION = {
+    '°': '*', '·': '.', '—': '-', '•': '*',
+    '↖': '\\', '↗': '/', '↘': '\\', '↙': '/',
+    '≈': '~', '─': '-', '│': '|',
+    '┌': '+', '┐': '+', '└': '+', '┘': '+',
+    '═': '=', '║': '|', '╔': '+', '╗': '+',
+    '█': '#', '▲': '^', '►': '>', '▼': 'v', '◄': '<',
+    '★': '*', '♣': '&', '⚓': 'o', '⚡': '*', '💬': '"', '📐': '#',
+}
+
+
 class Pixel:
     __slots__ = ('char', 'fg', 'bg')
 
@@ -15,13 +26,20 @@ class Pixel:
 
 
 class ScreenBuffer:
-    def __init__(self, width: int = 80, height: int = 32, use_color: bool = True):
+    _CACHE_LIMIT = 4096
+
+    def __init__(self, width: int = 80, height: int = 32, use_color: bool = True, use_background: bool = True):
         self.width = width
         self.height = height
         self.use_color = use_color
+        self.use_background = use_background
         self.pixels: List[List[Pixel]] = [
             [Pixel(' ', None, None) for _ in range(width)] for _ in range(height)
         ]
+        # Memoized ANSI escape strings keyed by RGB tuple; escapes are immutable
+        # per color so the cache never needs invalidation (size-capped only)
+        self._fg_cache = {}
+        self._bg_cache = {}
 
     def resize(self, width: int, height: int):
         self.width = width
@@ -31,12 +49,17 @@ class ScreenBuffer:
         ]
 
     def clear(self, bg: Optional[Tuple[int, int, int]] = None):
-        for y in range(self.height):
-            for x in range(self.width):
-                p = self.pixels[y][x]
+        for row in self.pixels:
+            for p in row:
                 p.char = ' '
                 p.fg = None
                 p.bg = bg
+
+    def _glyph(self, ch: str) -> str:
+        """Transliterates non-ASCII glyphs when running in monochrome ASCII mode."""
+        if self.use_color or ch.isascii():
+            return ch
+        return ASCII_TRANSLATION.get(ch, '?')
 
     def set_pixel(
         self,
@@ -48,7 +71,7 @@ class ScreenBuffer:
     ):
         if 0 <= x < self.width and 0 <= y < self.height:
             p = self.pixels[y][x]
-            p.char = char
+            p.char = self._glyph(char)
             if fg is not None:
                 p.fg = fg
             if bg is not None:
@@ -66,7 +89,7 @@ class ScreenBuffer:
             px = x + i
             if 0 <= px < self.width and 0 <= y < self.height:
                 p = self.pixels[y][px]
-                p.char = ch
+                p.char = self._glyph(ch)
                 if fg is not None:
                     p.fg = fg
                 if bg is not None:
@@ -123,30 +146,48 @@ class ScreenBuffer:
 
         last_fg: Optional[Tuple[int, int, int]] = None
         last_bg: Optional[Tuple[int, int, int]] = None
+        paint_bg = self.use_background
+        fg_cache = self._fg_cache
+        bg_cache = self._bg_cache
+        cache_limit = self._CACHE_LIMIT
+        append = out.append
 
         for y, row in enumerate(self.pixels):
             for p in row:
+                fg = p.fg
                 # Update foreground color if changed
-                if p.fg != last_fg:
-                    if p.fg is None:
-                        out.append("\033[39m")
+                if fg != last_fg:
+                    if fg is None:
+                        append("\033[39m")
                     else:
-                        out.append(f"\033[38;2;{p.fg[0]};{p.fg[1]};{p.fg[2]}m")
-                    last_fg = p.fg
+                        esc = fg_cache.get(fg)
+                        if esc is None:
+                            esc = f"\033[38;2;{fg[0]};{fg[1]};{fg[2]}m"
+                            if len(fg_cache) < cache_limit:
+                                fg_cache[fg] = esc
+                        append(esc)
+                    last_fg = fg
 
-                # Update background color if changed
-                if p.bg != last_bg:
-                    if p.bg is None:
-                        out.append("\033[49m")
-                    else:
-                        out.append(f"\033[48;2;{p.bg[0]};{p.bg[1]};{p.bg[2]}m")
-                    last_bg = p.bg
+                # Update background color if changed (skipped entirely in no-fill mode)
+                if paint_bg:
+                    bg = p.bg
+                    if bg != last_bg:
+                        if bg is None:
+                            append("\033[49m")
+                        else:
+                            esc = bg_cache.get(bg)
+                            if esc is None:
+                                esc = f"\033[48;2;{bg[0]};{bg[1]};{bg[2]}m"
+                                if len(bg_cache) < cache_limit:
+                                    bg_cache[bg] = esc
+                            append(esc)
+                        last_bg = bg
 
-                out.append(p.char)
+                append(p.char)
 
             # Reset style at line end
             if y < self.height - 1:
-                out.append("\r\n")
+                append("\r\n")
 
-        out.append("\033[0m")
+        append("\033[0m")
         return "".join(out)

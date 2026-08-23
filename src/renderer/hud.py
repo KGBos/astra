@@ -120,7 +120,7 @@ class HUD:
         beam_str = "BEAM:ON" if self.flashlight_on else "BEAM:OFF"
         wet_pct = int(weather.wetness * 100)
         bot_left = f" POS: X:{camera.pos.x:4.1f} Y:{camera.pos.y:4.1f} │ SEED: #{city_map.seed} │ SPEED: [{speed_gauge:<10}] │ WET:{wet_pct}%"
-        bot_right = "[WASD] Move │ [F] Talk │ [H] Horn │ [G] New City │ [L] POI │ [M] Map │ [T] Time │ [R] Weather │ [B] Beam │ [Esc] Quit "
+        bot_right = "[WASD] Move │ [Drag] Look │ [F] Talk │ [H] Horn │ [G] New City │ [M] Map │ [B] Beam │ [Esc] Quit "
 
         # Draw Bottom Bar background
         for x in range(w):
