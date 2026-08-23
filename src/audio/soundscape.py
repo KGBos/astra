@@ -2,6 +2,7 @@
 Zero-dependency Retro Soundscape & Procedural Audio Engine for Astra 3D.
 Generates pure standard library WAV synthesizers and non-blocking sound playback.
 Author: Valerie Sterling ⚡ (3D Raycaster & Rasterization Specialist)
+Status: M3 WORK-IN-PROGRESS — module is implemented and unit-tested (tests/test_vehicle_audio.py) but not yet integrated into the main Game loop (src/game.py).
 """
 
 import os

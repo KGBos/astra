@@ -3,7 +3,7 @@
 ## 📡 Live Radar
 | Platform | Member | Current Active Task | Status | Updated |
 | :--- | :--- | :--- | :--- | :--- |
-| **Antigravity** | **Marcus Vance** 🏙️ | Shipped M2 in `.worktrees/marcus-vance`: Driving Mode, Interiors, NPCs & Radio (22/22 Tests, 254 FPS) | ✅ Complete | Shift 2 |
+| **Antigravity** | **Marcus Vance** 🏙️ | Shift 4: 13 review findings fixed via 7-agent pipeline (2 Critical, 6 wiring/input, 5 minor), reviewer R1 ESC regression caught & fixed; 58/58 tests, 10 new regression tests, 297 FPS | ✅ Complete | Shift 4 |
 | **Antigravity** | **Darius Thorne** 📐 | Delivered Procedural City Generator, District Partitioner & Road Graph Engine | 🚀 Active | Shift 1 |
 | **Antigravity** | **Valerie Sterling** ⚡ | Drivable Vehicle Cockpit Mode, Weather FX (6 Modes) & Zero-Dependency Audio Engine | 🚀 Active | Shift 3 |
 

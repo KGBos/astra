@@ -45,6 +45,8 @@ Controls:
   [M]              Toggle Mini-Map Radar
   [T]              Advance Time of Day
   [R]              Toggle Weather (Clear / Rain)
+  [B]              Toggle Tactical Beam
+  [F]              Talk to nearby pedestrian
   [H]              Honk Horn
   [Esc] or [X]     Exit
         """
@@ -71,9 +73,7 @@ Controls:
         demo_mode=args.demo
     )
     if args.seed:
-        game.city_map = CityMap(width=game.city_map.width, height=game.city_map.height, seed=args.seed)
-        game.traffic = TrafficManager(game.city_map)
-        game.camera.pos.x, game.camera.pos.y = game.city_map.spawn_pos
+        game.regenerate_city(args.seed)
 
     try:
         game.run()

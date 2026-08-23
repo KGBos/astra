@@ -65,6 +65,9 @@ class Raycaster:
             day_night=day_night,
             weather=weather,
             horizon_y=horizon_y,
+            zenith_col=zenith_col,
+            horizon_col=horizon_col,
+            ambient=base_ambient,
             lightning_intensity=lightning_intensity,
             lightning_col=lightning_col,
             buffer=buffer
@@ -219,12 +222,13 @@ class Raycaster:
         day_night: DayNightCycle,
         weather: Optional[WeatherSystem],
         horizon_y: int,
+        zenith_col: Tuple[int, int, int],
+        horizon_col: Tuple[int, int, int],
+        ambient: float,
         lightning_intensity: float,
         lightning_col: Tuple[int, int, int],
         buffer: ScreenBuffer
     ):
-        zenith_col, horizon_col = day_night.get_sky_gradient()
-        ambient = day_night.get_ambient_light()
         is_night = day_night.time_of_day > 20.0 or day_night.time_of_day < 5.0
         wetness = weather.wetness if weather else 0.0
 

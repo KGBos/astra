@@ -290,7 +290,7 @@ class Pedestrian:
         ix, iy = int(self.x), int(self.y)
         ftype = city_map.get_floor_type(ix, iy)
         # If reached sidewalk again, switch back to walking
-        if ftype in (FloorType.SIDEWALK, FloorType.PLAZA_TILES, FloorType.PARK_GRASS, FloorType.COBBLESTONE):
+        if ftype in (FloorType.SIDEWALK, FloorType.PLAZA_TILES, FloorType.PARK_GRASS, FloorType.COBBLESTONE, FloorType.WOOD_DECK):
             self.state = PedestrianState.WALKING
             self.state_timer = random.uniform(3.0, 6.0)
 

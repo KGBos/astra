@@ -2,8 +2,9 @@
 Main Game Engine loop, state management, and autonomous demo mode for Astra 3D.
 """
 
-import time
 import math
+import random
+import time
 from typing import Optional
 
 from src.engine.camera import Camera
@@ -43,8 +44,10 @@ class Game:
         # Spawn player in Cyber-Downtown near avenue
         self.camera = Camera(x=12.5, y=6.5, fov_deg=70.0)
         self.camera.set_direction(math.pi / 2.0)  # Face South (+Y) down avenue
+        self.camera.pos.x, self.camera.pos.y = self.city_map.spawn_pos
 
-        self.traffic = TrafficManager(self.city_map, vehicle_count=18)
+        self.vehicle_count = 18
+        self.traffic = TrafficManager(self.city_map, vehicle_count=self.vehicle_count)
         self.pedestrians = PedestrianManager(self.city_map, pedestrian_count=28)
         self.day_night = DayNightCycle(start_hour=22.5, time_speed=0.4)
         self.weather = WeatherSystem(weather=WeatherType.CLEAR)
@@ -59,7 +62,17 @@ class Game:
         # Performance metrics
         self.fps = float(target_fps)
         self.frame_count = 0
+        self.total_frames = 0
         self.last_fps_calc = time.time()
+
+    def regenerate_city(self, seed=None) -> None:
+        """Rebuilds the procedural city, traffic, and pedestrians for a given seed (random if None)."""
+        if seed is None:
+            seed = random.randint(100000, 999999)
+        self.city_map = CityMap(width=self.city_map.width, height=self.city_map.height, seed=seed)
+        self.traffic = TrafficManager(self.city_map, vehicle_count=self.vehicle_count)
+        self.pedestrians = PedestrianManager(self.city_map, pedestrian_count=28)
+        self.camera.pos.x, self.camera.pos.y = self.city_map.spawn_pos
 
     def run(self, max_frames: Optional[int] = None):
         """Starts the main game loop."""
@@ -98,6 +111,7 @@ class Game:
 
                 # 6. FPS Calculation
                 self.frame_count += 1
+                self.total_frames += 1
                 now = time.time()
                 if now - self.last_fps_calc >= 0.5:
                     self.fps = self.frame_count / (now - self.last_fps_calc)
@@ -110,7 +124,7 @@ class Game:
                 if sleep_time > 0:
                     time.sleep(sleep_time)
 
-                if max_frames and self.frame_count >= max_frames:
+                if max_frames and self.total_frames >= max_frames:
                     break
 
     def _resize_viewport(self, w: int, h: int):
@@ -171,12 +185,11 @@ class Game:
         if self.keyboard.has_event(KeyAction.TOGGLE_WEATHER):
             self.weather.toggle_weather(self.screen_w, self.screen_h)
             self.hud.set_notification(f"WEATHER MODE // {self.weather.current_weather.value}")
+        if self.keyboard.has_event(KeyAction.TOGGLE_FLASHLIGHT):
+            self.hud.toggle_flashlight()
         if self.keyboard.has_event(KeyAction.REGENERATE_CITY):
             new_seed = random.randint(100000, 999999)
-            self.city_map = CityMap(width=self.city_map.width, height=self.city_map.height, seed=new_seed)
-            self.traffic = TrafficManager(self.city_map)
-            self.pedestrians = PedestrianManager(self.city_map, pedestrian_count=28)
-            self.camera.pos.x, self.camera.pos.y = self.city_map.spawn_pos
+            self.regenerate_city(new_seed)
             self.hud.set_notification(f"METROPOLIS RE-SYNTHESIZED // SEED #{new_seed}", duration=4.0)
         if self.keyboard.has_event(KeyAction.CYCLE_LANDMARKS):
             if not hasattr(self, '_landmark_idx'):
@@ -194,10 +207,10 @@ class Game:
             if talk_res:
                 archetype, quote = talk_res
                 arch_name = archetype.replace('_', ' ').title()
-                self.hud.set_notification(f"💬 [{arch_name}]: \"{quote}\"", duration=4.5)
+                self.hud.set_notification(f"[{arch_name}]: \"{quote}\"", duration=4.5)
         if self.keyboard.has_event(KeyAction.HONK_HORN):
             self.pedestrians.alert_nearby(self.camera.pos.x, self.camera.pos.y)
-            self.hud.set_notification("HONK! 📯 CITIZENS & CARS ALERTED", duration=2.0)
+            self.hud.set_notification("HONK! CITIZENS & CARS ALERTED", duration=2.0)
 
     def _update_demo_camera(self, dt: float):
         """Smooth autonomous city tour for demo mode."""
@@ -229,7 +242,7 @@ class Game:
         else:
             self.hud.interaction_prompt = None
 
-        self.hud.update(dt)
+        self.hud.update(dt, weather=self.weather)
 
     def _render_frame(self):
         self.buffer.clear()
@@ -244,7 +257,9 @@ class Game:
             city_map=self.city_map,
             sprites=sprites,
             day_night=self.day_night,
-            buffer=self.buffer
+            buffer=self.buffer,
+            weather=self.weather,
+            flashlight_on=self.hud.flashlight_on
         )
 
         # HUD & Overlays

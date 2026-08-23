@@ -45,19 +45,16 @@ class TrafficManager:
     def _spawn_vehicles(self, count: int):
         vtypes = [VehicleType.TAXI, VehicleType.CYBER_SEDAN, VehicleType.POLICE, VehicleType.BUS]
         
-        # Spawn cars along North-South Avenues
+        candidates = []
         for col in self.city_map.ns_road_cols:
-            # Lane 1 (going South: +Y)
-            self.vehicles.append(Vehicle(col + 0.5, random.uniform(3, self.city_map.height - 4), random.choice(vtypes), (0, 1)))
-            # Lane 2 (going North: -Y)
-            self.vehicles.append(Vehicle(col + 1.5, random.uniform(3, self.city_map.height - 4), random.choice(vtypes), (0, -1)))
-
-        # Spawn cars along East-West Streets
+            candidates.append((col + 0.5, random.uniform(3, self.city_map.height - 4), random.choice(vtypes), (0, 1)))
+            candidates.append((col + 1.5, random.uniform(3, self.city_map.height - 4), random.choice(vtypes), (0, -1)))
         for row in self.city_map.ew_road_rows:
-            # Lane 1 (going East: +X)
-            self.vehicles.append(Vehicle(random.uniform(3, self.city_map.width - 4), row + 0.5, random.choice(vtypes), (1, 0)))
-            # Lane 2 (going West: -X)
-            self.vehicles.append(Vehicle(random.uniform(3, self.city_map.width - 4), row + 1.5, random.choice(vtypes), (-1, 0)))
+            candidates.append((random.uniform(3, self.city_map.width - 4), row + 0.5, random.choice(vtypes), (1, 0)))
+            candidates.append((random.uniform(3, self.city_map.width - 4), row + 1.5, random.choice(vtypes), (-1, 0)))
+        random.shuffle(candidates)
+        for x, y, vtype, heading in candidates[:max(0, count)]:
+            self.vehicles.append(Vehicle(x, y, vtype, heading))
 
     def update(self, dt: float):
         for vehicle in self.vehicles:

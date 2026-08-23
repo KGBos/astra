@@ -4,7 +4,7 @@ Author: Darius Thorne (Procedural World & City Generation Specialist 📐)
 """
 
 import unittest
-from src.world.city_map import CityMap
+from src.world.city_map import CityMap, FloorType
 from src.entities.pedestrian import (
     Pedestrian,
     PedestrianArchetype,
@@ -62,30 +62,68 @@ class TestPedestrians(unittest.TestCase):
         spr_sit = ped.get_sprite_for_camera(cam_x=15.0, cam_y=18.0)
         self.assertIn("SIT", spr_sit.name)
 
+    def _find_open_sidewalk_run(self):
+        """Locates a grid cell with four consecutive open walkable tiles heading East."""
+        walkable = (
+            FloorType.SIDEWALK,
+            FloorType.PLAZA_TILES,
+            FloorType.PARK_GRASS,
+            FloorType.COBBLESTONE,
+            FloorType.WOOD_DECK
+        )
+        for y in range(2, self.city_map.height - 2):
+            for x in range(2, self.city_map.width - 5):
+                if all(
+                    not self.city_map.is_solid(x + i, y)
+                    and not self.city_map.is_water(x + i, y)
+                    and self.city_map.get_floor_type(x + i, y) in walkable
+                    for i in range(4)
+                ):
+                    return x, y
+        self.fail("Seeded city map contains no open four-tile sidewalk run")
+
     def test_walking_movement_and_update(self):
         """Walking update must advance position and stride cycle."""
-        ped = self.ped_manager.pedestrians[0]
+        run_x, run_y = self._find_open_sidewalk_run()
+        ped = Pedestrian(
+            float(run_x) + 0.5,
+            float(run_y) + 0.5,
+            archetype=PedestrianArchetype.CASUAL_CITIZEN,
+            heading_dir=(1, 0),
+            walk_speed=2.0
+        )
+        ped.state_timer = 999.0
         init_pos = (ped.x, ped.y)
         init_tick = ped.walk_tick
 
         for _ in range(5):
             ped.update(0.2, self.city_map, [])
-        self.assertNotEqual(init_pos, (ped.x, ped.y))
+        self.assertEqual(ped.state, PedestrianState.WALKING)
+        self.assertGreater(ped.x, init_pos[0])
+        self.assertEqual(ped.y, init_pos[1])
         self.assertGreater(ped.walk_tick, init_tick)
+        self.assertFalse(self.city_map.is_solid(ped.x, ped.y))
+        self.assertFalse(self.city_map.is_water(ped.x, ped.y))
 
     def test_proximity_focus_and_interaction(self):
         """Player looking directly at nearby pedestrian must trigger focused interaction."""
-        ped = self.ped_manager.pedestrians[0]
-        # Place camera 1.5 units behind pedestrian looking straight at them
-        cam_x = ped.x - 1.5
-        cam_y = ped.y
-        dir_x = 1.0  # looking East towards pedestrian
+        focused_manager = PedestrianManager(self.city_map, pedestrian_count=1)
+        ped = Pedestrian(
+            10.0, 10.0,
+            archetype=PedestrianArchetype.CYBERPUNK,
+            heading_dir=(-1, 0)
+        )
+        focused_manager.pedestrians = [ped]
+
+        cam_x = 8.5
+        cam_y = 10.0
+        dir_x = 1.0
         dir_y = 0.0
 
-        focused = self.ped_manager.get_focused_pedestrian(cam_x, cam_y, dir_x, dir_y, max_dist=3.0)
+        focused = focused_manager.get_focused_pedestrian(cam_x, cam_y, dir_x, dir_y, max_dist=3.0)
         self.assertEqual(focused, ped)
 
-        talk_res = self.ped_manager.interact_with_focused(cam_x, cam_y, dir_x, dir_y)
+        talk_res = focused_manager.interact_with_focused(cam_x, cam_y, dir_x, dir_y)
         self.assertIsNotNone(talk_res)
         archetype, quote = talk_res
         self.assertEqual(archetype, ped.archetype.value)

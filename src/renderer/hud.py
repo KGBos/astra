@@ -37,7 +37,7 @@ class HUD:
             self.notification_timer -= dt
 
         if weather and weather.poll_thunder_event():
-            self.set_notification("⚡ *BOOM* THUNDERCLAP ECHOES ACROSS SKYLINE", duration=2.5)
+            self.set_notification("*BOOM* THUNDERCLAP ECHOES ACROSS SKYLINE", duration=2.5)
 
     def render(
         self,
@@ -72,12 +72,12 @@ class HUD:
 
         # Weather icon & label
         weather_icons = {
-            WeatherType.CLEAR: "☀️ CLEAR",
-            WeatherType.RAIN: "🌧️ RAIN",
-            WeatherType.STORM: "⛈️ STORM",
-            WeatherType.FOGGY: "🌫️ FOGGY",
-            WeatherType.SNOW: "❄️ SNOW",
-            WeatherType.ACID_RAIN: "🧪 ACID RAIN"
+            WeatherType.CLEAR: "CLEAR",
+            WeatherType.RAIN: "RAIN",
+            WeatherType.STORM: "STORM",
+            WeatherType.FOGGY: "FOG",
+            WeatherType.SNOW: "SNOW",
+            WeatherType.ACID_RAIN: "ACID RAIN"
         }
         w_label = weather_icons.get(weather.current_weather, weather.current_weather.value)
 
@@ -100,7 +100,7 @@ class HUD:
 
         # 3. Notification banner if active
         if self.notification_timer > 0.0:
-            notif = f" ⚡ {self.notification_msg} "
+            notif = f" // {self.notification_msg} "
             nx = max(0, (w - len(notif)) // 2)
             bg_color = (200, 50, 90) if ("BOOM" in notif or "STORM" in notif) else (30, 90, 180)
             buffer.draw_string(nx, 2, notif, (255, 255, 255), bg_color)
@@ -120,7 +120,7 @@ class HUD:
         beam_str = "BEAM:ON" if self.flashlight_on else "BEAM:OFF"
         wet_pct = int(weather.wetness * 100)
         bot_left = f" POS: X:{camera.pos.x:4.1f} Y:{camera.pos.y:4.1f} │ SEED: #{city_map.seed} │ SPEED: [{speed_gauge:<10}] │ WET:{wet_pct}%"
-        bot_right = "[WASD] Move │ [F] Talk │ [H] Horn │ [G] New City │ [L] POI │ [M] Map │ [T] Time │ [R] Weather │ [Esc] Quit "
+        bot_right = "[WASD] Move │ [F] Talk │ [H] Horn │ [G] New City │ [L] POI │ [M] Map │ [T] Time │ [R] Weather │ [B] Beam │ [Esc] Quit "
 
         # Draw Bottom Bar background
         for x in range(w):

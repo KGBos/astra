@@ -4,7 +4,8 @@ Non-blocking Keyboard input poller and ANSI escape sequence parser for Astra 3D.
 
 import sys
 import select
-from typing import Set, List
+import time
+from typing import Optional, Set, List
 
 
 class KeyAction:
@@ -25,6 +26,7 @@ class KeyAction:
     CYCLE_LANDMARKS = "CYCLE_LANDMARKS"
     INTERACT = "INTERACT"
     HONK_HORN = "HONK_HORN"
+    TOGGLE_FLASHLIGHT = "TOGGLE_FLASHLIGHT"
     QUIT = "QUIT"
     PAUSE = "PAUSE"
 
@@ -33,15 +35,16 @@ class KeyboardController:
     def __init__(self):
         self.active_actions: Set[str] = set()
         self.pressed_events: List[str] = []
+        self._pending: List[str] = []
+        self._pending_time: float = 0.0
+        self.last_input_time: float = 0.0
+        self.DECAY_SECONDS = 0.25
 
     def poll_input(self):
         """Non-blocking read of all available stdin bytes and updates action states."""
-        self.pressed_events.clear()
-        
-        # Drain all available input without blocking
+        now = time.monotonic()
         chars = []
         while True:
-            # Check if stdin has data ready
             r, _, _ = select.select([sys.stdin], [], [], 0.0)
             if not r:
                 break
@@ -53,10 +56,27 @@ class KeyboardController:
             except Exception:
                 break
 
-        if not chars:
-            # Decay momentary movement keys when no input arrives
+        if chars:
+            self.last_input_time = now
+        elif now - self.last_input_time > self.DECAY_SECONDS:
             self.active_actions.clear()
-            return
+
+        self._consume(chars, now)
+
+    def _consume(self, chars: List[str], now: Optional[float] = None):
+        """Parse raw characters into action states, stashing partial escape sequences."""
+        if now is None:
+            now = time.monotonic()
+
+        self.pressed_events.clear()
+
+        if self._pending == ['\033'] and (now - self._pending_time) > self.DECAY_SECONDS:
+            # Stashed lone Escape never got its tail: it was a standalone ESC keypress
+            self.pressed_events.append(KeyAction.QUIT)
+            self._pending = []
+
+        chars = self._pending + chars
+        self._pending = []
 
         i = 0
         n = len(chars)
@@ -81,6 +101,15 @@ class KeyboardController:
                             self.pressed_events.append(KeyAction.TURN_LEFT)
                         i += 3
                         continue
+                    # Split escape sequence across polls: stash tail for next batch
+                    self._pending = chars[i:]
+                    self._pending_time = now
+                    break
+                if i == n - 1:
+                    # Trailing Escape byte may be the head of a split sequence
+                    self._pending = ['\033']
+                    self._pending_time = now
+                    break
                 # Standalone Escape key
                 self.pressed_events.append(KeyAction.QUIT)
                 i += 1
@@ -118,6 +147,8 @@ class KeyboardController:
                 self.pressed_events.append(KeyAction.CYCLE_LANDMARKS)
             elif lower == 'f':
                 self.pressed_events.append(KeyAction.INTERACT)
+            elif lower == 'b':
+                self.pressed_events.append(KeyAction.TOGGLE_FLASHLIGHT)
             elif lower == 'h':
                 self.pressed_events.append(KeyAction.HONK_HORN)
             elif lower == 'p':
