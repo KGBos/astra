@@ -1,14 +1,15 @@
 """
-Interactive HUD, Mini-Map GPS Radar, Compass, and Telemetry overlays for Astra 3D.
+Interactive HUD, Mini-Map GPS Radar, Compass, Weather Telemetry & Ambient Interaction prompts for Astra 3D.
+Author: Valerie Sterling ⚡ & Darius Thorne 📐
 """
 
 import math
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from src.engine.camera import Camera
 from src.engine.math3d import rad_to_deg, get_compass_bearing
 from src.world.city_map import CityMap
 from src.world.day_night import DayNightCycle
-from src.world.weather import WeatherSystem
+from src.world.weather import WeatherSystem, WeatherType
 from src.entities.sprite import Sprite
 from src.renderer.screen_buffer import ScreenBuffer
 
@@ -18,14 +19,25 @@ class HUD:
         self.show_minimap = show_minimap
         self.notification_msg = "WELCOME TO ASTRA 3D // CITY EXPLORER"
         self.notification_timer = 5.0
+        self.flashlight_on = False
+        self.interaction_prompt: Optional[str] = None
 
     def set_notification(self, msg: str, duration: float = 3.0):
         self.notification_msg = msg
         self.notification_timer = duration
 
-    def update(self, dt: float):
+    def toggle_flashlight(self) -> bool:
+        self.flashlight_on = not self.flashlight_on
+        state = "ACTIVE" if self.flashlight_on else "OFF"
+        self.set_notification(f"TACTICAL BEAM // {state}")
+        return self.flashlight_on
+
+    def update(self, dt: float, weather: Optional[WeatherSystem] = None):
         if self.notification_timer > 0.0:
             self.notification_timer -= dt
+
+        if weather and weather.poll_thunder_event():
+            self.set_notification("⚡ *BOOM* THUNDERCLAP ECHOES ACROSS SKYLINE", duration=2.5)
 
     def render(
         self,
@@ -53,7 +65,21 @@ class HUD:
         bearing = get_compass_bearing(camera.dir.x, camera.dir.y)
         cam_deg = int(rad_to_deg(math.atan2(camera.dir.y, camera.dir.x)))
         time_str = day_night.get_time_string()
-        weather_str = weather.current_weather.value
+        
+        # Wind telemetry
+        wind_arrow = "►" if weather.wind_x > 0 else "◄"
+        wind_str = f"WIND:{wind_arrow}{abs(weather.wind_x):.0f}"
+
+        # Weather icon & label
+        weather_icons = {
+            WeatherType.CLEAR: "☀️ CLEAR",
+            WeatherType.RAIN: "🌧️ RAIN",
+            WeatherType.STORM: "⛈️ STORM",
+            WeatherType.FOGGY: "🌫️ FOGGY",
+            WeatherType.SNOW: "❄️ SNOW",
+            WeatherType.ACID_RAIN: "🧪 ACID RAIN"
+        }
+        w_label = weather_icons.get(weather.current_weather, weather.current_weather.value)
 
         # Nearest Landmark Telemetry
         lm_info = city_map.get_nearest_landmark(camera.pos.x, camera.pos.y)
@@ -64,48 +90,51 @@ class HUD:
             poi_tag = ""
 
         top_left = f" ASTRA 3D │ {district} │ {street}{poi_tag}"
-        top_right = f"DIR: {bearing} [{cam_deg:03d}°] │ {time_str} │ {weather_str} │ {fps:4.1f} FPS "
+        top_right = f"DIR: {bearing} [{cam_deg:03d}°] │ {wind_str} │ {time_str} │ {w_label} │ {fps:4.1f} FPS "
 
         # Draw Top Bar background
         for x in range(w):
             buffer.set_pixel(x, 0, ' ', None, (20, 25, 35))
-        buffer.draw_string(0, 0, top_left[:w - len(top_right) - 1], (0, 240, 255), (20, 25, 35))
+        buffer.draw_string(0, 0, top_left[:max(0, w - len(top_right) - 1)], (0, 240, 255), (20, 25, 35))
         buffer.draw_string(max(0, w - len(top_right)), 0, top_right, (255, 220, 50), (20, 25, 35))
 
         # 3. Notification banner if active
         if self.notification_timer > 0.0:
             notif = f" ⚡ {self.notification_msg} "
             nx = max(0, (w - len(notif)) // 2)
-            buffer.draw_string(nx, 2, notif, (255, 255, 255), (180, 30, 80))
+            bg_color = (200, 50, 90) if ("BOOM" in notif or "STORM" in notif) else (30, 90, 180)
+            buffer.draw_string(nx, 2, notif, (255, 255, 255), bg_color)
 
         # 4. Mini-Map GPS Radar (Top Right below top bar)
         if self.show_minimap and w >= 60 and h >= 20:
             self._render_minimap(camera, city_map, sprites, buffer)
 
         # 5. Pedestrian Interaction Prompt (above bottom bar)
-        if hasattr(self, 'interaction_prompt') and self.interaction_prompt:
+        if self.interaction_prompt:
             p_text = f" 💬 {self.interaction_prompt} "
             px = max(0, (w - len(p_text)) // 2)
             buffer.draw_string(px, h - 3, p_text, (255, 240, 100), (30, 35, 50))
 
         # 6. Bottom Navigation & Status Bar
         speed_gauge = "█" * int(min(10, (camera.move_speed * (camera.sprint_mult if camera.is_jumping or camera.bob_amount > 0 else 1.0))))
-        bot_left = f" POS: X:{camera.pos.x:4.1f} Y:{camera.pos.y:4.1f} │ SEED: #{city_map.seed} │ SPEED: [{speed_gauge:<10}]"
-        bot_right = "[WASD] Move │ [F] Talk │ [H] Horn │ [G] New City │ [L] POI │ [M] Map │ [T] Time │ [Esc] Quit "
+        beam_str = "BEAM:ON" if self.flashlight_on else "BEAM:OFF"
+        wet_pct = int(weather.wetness * 100)
+        bot_left = f" POS: X:{camera.pos.x:4.1f} Y:{camera.pos.y:4.1f} │ SEED: #{city_map.seed} │ SPEED: [{speed_gauge:<10}] │ WET:{wet_pct}%"
+        bot_right = "[WASD] Move │ [F] Talk │ [H] Horn │ [G] New City │ [L] POI │ [M] Map │ [T] Time │ [R] Weather │ [Esc] Quit "
 
         # Draw Bottom Bar background
         for x in range(w):
             buffer.set_pixel(x, h - 1, ' ', None, (15, 20, 30))
-        buffer.draw_string(0, h - 1, bot_left[:w - len(bot_right) - 1], (180, 220, 255), (15, 20, 30))
+        buffer.draw_string(0, h - 1, bot_left[:max(0, w - len(bot_right) - 1)], (180, 220, 255), (15, 20, 30))
         buffer.draw_string(max(0, w - len(bot_right)), h - 1, bot_right, (150, 180, 210), (15, 20, 30))
 
-        # 7. Weather Overlay (Rain particles)
-        if weather.current_weather == weather.current_weather.RAIN:
+        # 7. Atmospheric FX & Particle Rendering
+        if weather.particles:
             for p in weather.particles:
                 px = int(p.x)
                 py = int(p.y)
                 if 1 <= py < h - 1 and 0 <= px < w:
-                    buffer.set_pixel(px, py, p.char, (160, 200, 255), None)
+                    buffer.set_pixel(px, py, p.char, p.fg_color, None)
 
     def _render_minimap(
         self,
