@@ -154,5 +154,6 @@ class Vehicle:
             facing_angle=facing_angle,
             scale_x=0.75, scale_y=0.5,
             is_luminous=True,
-            back_chars=back_chars, back_fg=back_fg
+            back_chars=back_chars, back_fg=back_fg,
+            corner_smooth=True
         )

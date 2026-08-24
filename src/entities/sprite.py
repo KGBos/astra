@@ -224,7 +224,8 @@ class VolumetricSprite(Sprite):
         vertical_offset: float = 0.0,
         is_luminous: bool = False,
         back_chars: Optional[List[str]] = None,
-        back_fg: Optional[List[List[Tuple[int, int, int]]]] = None
+        back_fg: Optional[List[List[Tuple[int, int, int]]]] = None,
+        corner_smooth: bool = False
     ):
         super().__init__(x, y, name, front_chars, front_fg,
                          scale_x=scale_x, scale_y=scale_y,
@@ -236,6 +237,7 @@ class VolumetricSprite(Sprite):
         self.back_chars = back_chars      # optional rear face (e.g. taillights)
         self.back_fg = back_fg
         self.facing_angle = facing_angle
+        self.corner_smooth = corner_smooth
 
     def visible_faces(self, cam_dx: float, cam_dy: float) -> Tuple[float, bool, bool]:
         """
@@ -255,7 +257,14 @@ class VolumetricSprite(Sprite):
         total = abs_cos + abs_sin
         if total < 1e-6:
             return (1.0, True, see_front)
-        return (abs_cos / total, sin_b >= 0.0, see_front)
+        if self.corner_smooth:
+            # Rounded-body presentation: the face split follows the bearing
+            # arc, so edge-on views keep a balanced corner instead of
+            # collapsing to a zero-width sliver.
+            share = (1.0 + abs_cos) / 2.0
+        else:
+            share = abs_cos / total
+        return (share, sin_b >= 0.0, see_front)
 
 
 def make_vending_machine_sprite(x: float, y: float, facing_angle: float = 0.0) -> VolumetricSprite:
