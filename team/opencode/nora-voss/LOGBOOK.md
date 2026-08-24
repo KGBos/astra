@@ -40,3 +40,9 @@ Ported four engine techniques from the ASCII City reference into the pure-Python
 - After two live-sync races clobbered in-flight engine edits, Leon directed all my future work into a dedicated worktree.
 - **Location**: `.worktrees/nora-voss` on branch `nora-voss/worktree`, forked from `d5111cc` (114/114 green at fork point).
 - From now on: engine edits happen there; integration picks up my shifts by merging the branch, never by snapshotting the master live tree mid-shift.
+
+## Shift 4 — Dirty-region frame diffing (dedicated worktree, first shift)
+- `ScreenBuffer.render_frame_delta()`: presented-state mirror tracks what the terminal shows; only differing cells are emitted, as runs with a single absolute cursor move per run. Unchanged frames emit zero bytes; resize force-clears (also fixes latent stale-garbage-on-shrink bug).
+- `game.run` switched to deltas; `flush_frame('')` skips the write syscall. Legacy `render_to_ansi` preserved as reference renderer for tests/benchmark.
+- Monochrome/no-fill modes respected in delta path.
+- **Results**: demo-scene output 21.1k → 7.3k bytes/frame (−65.5%, worst case; static scenes −100%); CPU neutral (0.280 vs 0.287 ms/frame); 123/123 tests green (+9 incl. MiniTerminal round-trip emulator proving grid-exact reconstruction).
