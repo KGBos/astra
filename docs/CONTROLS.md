@@ -30,11 +30,22 @@
 ## World Interaction & HUD Shortcuts
 | Action | Key | Description |
 | :--- | :--- | :--- |
+| **Enter Buildings** | `Walk into a door` | Glowing `EXIT`-bar thresholds are live portals — walk up to one to step inside |
+| **Exit Buildings** | `Walk to inner door` | Inside, return to the glowing threshold to step back onto the street |
+| **Live Windows** | Automatic | Interior windows render the real city outside, from your inside perspective |
 | **Toggle GPS Radar** | `M` | Show/hide the top-right mini-map radar |
 | **Skip Time of Day** | `T` | Advance clock by 4 hours (Day/Sunset/Night) |
 | **Toggle Weather** | `R` | Cycle weather between Clear, Rain, and Fog |
 | **Honk Horn** | `H` | Sound vehicle horn and broadcast alert |
 | **Exit Game** | `Esc` or `X` | Cleanly restore terminal state and exit |
+
+---
+
+## Engine Rendering Features
+- **Two-tier draw distance**: a detailed raycaster covers the near field, while a coarse "far renderer" simplifies distant masses into a hazy skyline silhouette.
+- **Depth-layer overlap**: rays see past shorter buildings and keep drawing taller towers rising behind them (up to 3 layers per column).
+- **Pseudo-volumetric props**: vending machines and similar street objects project distinct front/side faces with an angle-dependent corner split — not flat billboards.
+- **Live-window portals**: building windows act as transparent portals; the engine renders a secondary exterior view clipped inside each glass opening.
 
 ---
 

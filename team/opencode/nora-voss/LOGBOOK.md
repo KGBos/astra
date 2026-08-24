@@ -16,3 +16,16 @@
 - **Input syscalls**: `poll_input` now drains the tty with one batched `os.read(fd, 4096)` per ready event instead of a select+read pair per byte (critical during mouse-drag bursts); non-fd stdins fall back to legacy char path.
 - **Flaky-test triage**: `test_weather_particle_physics_and_wrapping` failed ~7% of runs on pristine HEAD (random rain spawn above ~y=27.8 wraps on first step). Fixed test-only by pinning spawn state; memo left in Valerie's inbox.
 - **Results**: benchmark 245 → ~335–385 FPS (+37–57%, run variance noted); interleaved A/B pacing: 30fps target improved 25.4 → 28.4 measured fps, 60fps target 48.6 → 56.3 under identical load. Full suite 85/85 green ×10 consecutive runs.
+
+## Shift 2 — ASCII City Feature Port (per Leon's spec)
+Ported four engine techniques from the ASCII City reference into the pure-Python terminal engine, staged and tested independently:
+1. **Depth-layer overlap**: `_cast_ray_layers` records up to 3 wall layers per column; farther masses recorded only when taller than everything nearer on that ray (the only case adding visible pixels). Painter compositing far→near lets towers rise above short foreground rooflines.
+2. **Two-tier draw distance**: detailed DDA for the near field (18 cells), then coarse parametric sampling with distance-growing strides out to 60 units for the hazy far skyline (`is_far` silhouette slices). Early-out when the nearest slice covers the full column.
+3. **Pseudo-volumetric props**: `VolumetricSprite` with distinct front/side faces; renderer splits the projected extent by `|cos β| : |sin β|` of the camera bearing so the box corner slides as you orbit. Vending machines seeded along avenues by the generator.
+4. **Interiors & live-window portals** (`src/world/interiors.py`): doorway detection over connected wall masses, lazily-built room interiors overlaying true world coordinates, walk-through enter/exit transitions in the game loop, and window cells that let rays fly through — exterior content rendered clipped inside the glass opening, sky fallback when nothing is beyond.
+
+**Incident**: mid-shift, an external revert restored `raycaster.py`, `math3d.py`, `sprite.py`, `procedural_gen.py`, and part of `game.py` to HEAD, deleting `tests/test_depth_skyline.py`. All Stage 1–3 work was re-applied from session context, folded together with Stage 4 portal logic in one pass. The same revert had silently dropped Marcus's committed `use_background=use_background` pass-through in `Game.__init__`, breaking his no-fill render-mode test — restored.
+
+**Results**: 110/110 tests green (26 new across three suites: depth/skyline, volumetric props, interiors/portals); benchmark median ~260 FPS vs 245 pre-session baseline while rendering strictly more scene per frame. Visual smoke test confirmed live-window interior view (neon facades + signage visible through glass).
+
+**Next**: interior furniture/prop dressing; multi-floor interiors; portal cost budgeting at very wide terminals.

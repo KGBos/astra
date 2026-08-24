@@ -10,6 +10,7 @@ from typing import Optional
 from src.engine.camera import Camera
 from src.engine.raycaster import Raycaster
 from src.world.city_map import CityMap
+from src.world import interiors as interiors_mod
 from src.world.day_night import DayNightCycle
 from src.world.weather import WeatherSystem, WeatherType
 from src.entities.traffic_manager import TrafficManager
@@ -65,6 +66,9 @@ class Game:
         self.raycaster = Raycaster(width, height)
         self.hud = HUD(show_minimap=True)
 
+        # Player space: None = street, else InteriorView while inside a building
+        self.interior_view = None
+
         # Performance metrics
         self.fps = float(target_fps)
         self.frame_count = 0
@@ -75,10 +79,55 @@ class Game:
         """Rebuilds the procedural city, traffic, and pedestrians for a given seed (random if None)."""
         if seed is None:
             seed = random.randint(100000, 999999)
+        self.interior_view = None
         self.city_map = CityMap(width=self.city_map.width, height=self.city_map.height, seed=seed)
         self.traffic = TrafficManager(self.city_map, vehicle_count=self.vehicle_count)
         self.pedestrians = PedestrianManager(self.city_map, pedestrian_count=28)
         self.camera.pos.x, self.camera.pos.y = self.city_map.spawn_pos
+
+    def _active_map(self):
+        """World queried by player-facing systems (camera physics + raycaster)."""
+        return self.interior_view if self.interior_view is not None else self.city_map
+
+    def _update_space(self):
+        """Walk-through doorways: street <-> building interior transitions."""
+        cam = self.camera
+        if self.interior_view is None:
+            nearest, dist = self._nearest_doorway()
+            if nearest and dist <= interiors_mod.ENTER_RADIUS:
+                _, view = self.city_map.get_interior(nearest)
+                self.interior_view = view
+                cam.pos.x, cam.pos.y = view.space.inner_door_world
+                # Step one cell deeper so we don't re-trigger the exit instantly
+                cx = view.space.x0 + view.space.w / 2.0
+                cy = view.space.y0 + view.space.h / 2.0
+                ndx, ndy = cam.pos.x - cx, cam.pos.y - cy
+                nl = max(0.001, math.hypot(ndx, ndy))
+                step = 1.1 / nl
+                tx, ty = cam.pos.x + ndx * step, cam.pos.y + ndy * step
+                if not view.is_solid(tx, ty):
+                    cam.pos.x, cam.pos.y = tx, ty
+                self.hud.set_notification("ENTERED BUILDING // WINDOWS ARE LIVE")
+        else:
+            space = self.interior_view.space
+            wx, wy = space.inner_door_world
+            if math.hypot(cam.pos.x - wx, cam.pos.y - wy) <= interiors_mod.EXIT_RADIUS:
+                doorway = space.doorway
+                ox, oy = ((1, 0), (0, 1), (-1, 0), (0, -1))[doorway.side]
+                self.interior_view = None
+                cam.pos.x = doorway.ext[0] + 0.5 + ox * 0.9
+                cam.pos.y = doorway.ext[1] + 0.5 + oy * 0.9
+                self.hud.set_notification("BACK ON THE STREET")
+
+    def _nearest_doorway(self):
+        """(doorway, center_distance) of the closest entrance, or (None, inf)."""
+        best, best_d = None, float('inf')
+        for d in self.city_map.doorways:
+            dist = math.hypot(self.camera.pos.x - (d.ext[0] + 0.5),
+                              self.camera.pos.y - (d.ext[1] + 0.5))
+            if dist < best_d:
+                best, best_d = d, dist
+        return best, best_d
 
     def run(self, max_frames: Optional[int] = None):
         """Starts the main game loop."""
@@ -101,6 +150,9 @@ class Game:
                     self.terminal.resized = False
                     tw, th = self.terminal.get_size()
                     self._resize_viewport(tw, th)
+
+                # 1.5 Walk-through doorway transitions (street <-> interiors)
+                self._update_space()
 
                 # 2. Input Processing
                 self._process_input(dt)
@@ -162,14 +214,14 @@ class Game:
         # Movement
         is_sprint = self.keyboard.is_action_active(KeyAction.SPRINT)
         if self.keyboard.is_action_active(KeyAction.MOVE_FORWARD):
-            self.camera.move_forward(dt, is_sprint, self.city_map)
+            self.camera.move_forward(dt, is_sprint, self._active_map())
         elif self.keyboard.is_action_active(KeyAction.MOVE_BACKWARD):
-            self.camera.move_backward(dt, is_sprint, self.city_map)
+            self.camera.move_backward(dt, is_sprint, self._active_map())
 
         if self.keyboard.is_action_active(KeyAction.STRAFE_LEFT):
-            self.camera.strafe_left(dt, self.city_map)
+            self.camera.strafe_left(dt, self._active_map())
         elif self.keyboard.is_action_active(KeyAction.STRAFE_RIGHT):
-            self.camera.strafe_right(dt, self.city_map)
+            self.camera.strafe_right(dt, self._active_map())
 
         # Turning
         if self.keyboard.is_action_active(KeyAction.TURN_LEFT):
@@ -237,7 +289,7 @@ class Game:
         """Smooth autonomous city tour for demo mode."""
         self.demo_timer += dt
         # Move forward automatically along road grid
-        self.camera.move_forward(dt, is_sprinting=False, world_map=self.city_map)
+        self.camera.move_forward(dt, is_sprinting=False, world_map=self._active_map())
         
         # Slowly sweep camera yaw and turn at intersections
         ix = int(self.camera.pos.x)
@@ -275,7 +327,7 @@ class Game:
         # 3D Raycasting & projection
         self.raycaster.render(
             camera=self.camera,
-            city_map=self.city_map,
+            city_map=self._active_map(),
             sprites=sprites,
             day_night=self.day_night,
             buffer=self.buffer,

@@ -11,7 +11,7 @@ from src.world.city_map import CityMap, FloorType
 from src.world.textures import get_texture
 from src.world.day_night import DayNightCycle
 from src.world.weather import WeatherSystem
-from src.entities.sprite import Sprite
+from src.entities.sprite import Sprite, VolumetricSprite
 from src.renderer.screen_buffer import ScreenBuffer
 
 
@@ -25,6 +25,15 @@ def _blend_color(c1: Tuple[int, int, int], c2: Tuple[int, int, int], factor: flo
 
 
 class Raycaster:
+    # Two-tier draw distance: detailed DDA in the near field, coarse parametric
+    # sampling for the far skyline; plus depth-layer stacking so rays see past
+    # shorter buildings to taller towers behind them
+    MAX_LAYERS = 3        # max wall layers recorded per column
+    NEAR_STEPS = 18       # detailed cell-by-cell DDA budget (near tier)
+    FAR_MAX_DIST = 60.0   # world units scanned by the far tier (skyline range)
+    FAR_STRIDE = 1.5      # far-tier sampling step along the ray
+    WINDOW_OPENING = 0.30 # half-height of the glass opening as slice fraction
+
     def __init__(self, screen_w: int = 80, screen_h: int = 32):
         self.width = screen_w
         self.height = screen_h
@@ -73,23 +82,64 @@ class Raycaster:
             buffer=buffer
         )
 
-        # 2. Raycast Walls & Record Z-Buffer
+        # 2. Raycast Walls & Record Z-Buffer (multi-layer, far-to-near paint)
         for x in range(self.width):
-            hit = self._cast_ray(x, camera, city_map)
-            if hit.hit:
-                self.z_buffer[x] = hit.perp_wall_dist
-                self._draw_wall_slice(
-                    screen_x=x,
-                    hit=hit,
-                    camera=camera,
-                    horizon_y=horizon_y,
-                    ambient=ambient,
-                    weather=weather,
-                    flashlight_on=flashlight_on,
-                    buffer=buffer
-                )
+            layers = self._cast_ray_layers(x, camera, city_map, horizon_y)
+            if layers and layers[0].hit:
+                self.z_buffer[x] = layers[0].perp_wall_dist
+                wall_layers = [h for h in layers if h.win_dist == 0.0]
+                portal_layers = [h for h in layers if h.win_dist > 0.0]
+
+                # Solid geometry first, far to near (classic painter)
+                for hit in reversed(wall_layers):
+                    self._draw_wall_slice(
+                        screen_x=x,
+                        hit=hit,
+                        camera=camera,
+                        horizon_y=horizon_y,
+                        ambient=ambient,
+                        weather=weather,
+                        flashlight_on=flashlight_on,
+                        buffer=buffer
+                    )
+
+                if portal_layers:
+                    # Live-window portals: exterior world seen through the
+                    # glass opening, painted far-to-near inside the span
+                    win_dist = portal_layers[0].win_dist
+                    w_half = (self.height / win_dist) * self.WINDOW_OPENING
+                    w_top = int(horizon_y - w_half)
+                    w_bot = int(horizon_y + w_half)
+                    for hit in reversed(portal_layers):
+                        self._draw_wall_slice(
+                            screen_x=x,
+                            hit=hit,
+                            camera=camera,
+                            horizon_y=horizon_y,
+                            ambient=ambient,
+                            weather=weather,
+                            flashlight_on=flashlight_on,
+                            buffer=buffer,
+                            clip=(w_top, w_bot)
+                        )
             else:
                 self.z_buffer[x] = 100.0
+                if layers and not layers[0].hit and layers[0].win_dist > 0.0:
+                    # Window with nothing solid beyond: open sky through glass
+                    win_dist = layers[0].win_dist
+                    w_half = (self.height / win_dist) * self.WINDOW_OPENING
+                    self._draw_sky_span(
+                        screen_x=x,
+                        y0=int(horizon_y - w_half),
+                        y1=int(horizon_y + w_half),
+                        zenith_col=zenith_col,
+                        horizon_col=horizon_col,
+                        lightning_intensity=lightning_intensity,
+                        lightning_col=lightning_col,
+                        day_night=day_night,
+                        weather=weather,
+                        buffer=buffer
+                    )
 
         # 3. Project & Draw 3D Billboarding Sprites (Vehicles, Streetlamps, Trees, Pedestrians)
         self._render_sprites(
@@ -102,6 +152,35 @@ class Raycaster:
         )
 
     def _cast_ray(self, screen_x: int, camera: Camera, city_map: CityMap) -> RayHit:
+        """Nearest wall hit for a column (compatibility accessor over _cast_ray_layers)."""
+        layers = self._cast_ray_layers(screen_x, camera, city_map)
+        if layers and layers[0].hit:
+            return layers[0]
+        camera_x = 2.0 * screen_x / float(self.width) - 1.0
+        return RayHit(False, 0, 0, 0, 100.0, 0.0, 0, 1.0,
+                      camera.dir.x + camera.plane.x * camera_x,
+                      camera.dir.y + camera.plane.y * camera_x)
+
+    def _cast_ray_layers(self, screen_x: int, camera: Camera, city_map: CityMap,
+                         horizon_y: Optional[int] = None) -> List[RayHit]:
+        """
+        Casts one column ray and records up to MAX_LAYERS wall hits near-to-far.
+
+        Tier 1 (detailed): cell-by-cell DDA through the near field; a farther
+        structure is recorded only when it stands TALLER than every nearer
+        layer on this ray (its roofline rises above theirs), which is exactly
+        the overlap case that adds visible pixels.
+
+        Tier 2 (far skyline): past the detailed budget, the ray advances in
+        coarse world-space strides out to FAR_MAX_DIST; the first solid sample
+        becomes a simplified silhouette layer. The stride grows with distance
+        and the whole tier is skipped when nearer layers already cover the
+        full screen column.
+
+        Indoors (InteriorView): window cells are transparent — the first one
+        crossed is remembered as a portal plane and every solid hit beyond it
+        is stamped win_dist so it renders clipped inside the glass opening.
+        """
         camera_x = 2.0 * screen_x / float(self.width) - 1.0
         ray_dir_x = camera.dir.x + camera.plane.x * camera_x
         ray_dir_y = camera.dir.y + camera.plane.y * camera_x
@@ -126,40 +205,135 @@ class Raycaster:
             step_y = 1
             side_dist_y = (map_y + 1.0 - camera.pos.y) * delta_dist_y
 
-        hit = False
+        layers: List[RayHit] = []
+        max_height = -1.0
         side = 0
-        max_steps = 45
+        indoors = getattr(city_map, 'in_interior', False)
+        window_dist = 0.0   # perp distance of the portal plane, once crossed
 
-        for _ in range(max_steps):
+        # A layer whose projected top reaches above the screen top hides every
+        # farther candidate; used to bail out of all remaining scanning
+        covered_top = False
+
+        def make_hit(mx, my, sd, perp, wx, wtype):
+            return RayHit(True, mx, my, sd, max(0.08, perp), wx,
+                          wtype, city_map.get_wall_height(wtype),
+                          ray_dir_x, ray_dir_y,
+                          is_far=False, win_dist=window_dist)
+
+        # ---- Tier 1: detailed near-field DDA with depth-layer stacking ----
+        for _ in range(self.NEAR_STEPS):
             if side_dist_x < side_dist_y:
                 side_dist_x += delta_dist_x
                 map_x += step_x
                 side = 0
+                marched = side_dist_x - delta_dist_x
             else:
                 side_dist_y += delta_dist_y
                 map_y += step_y
                 side = 1
+                marched = side_dist_y - delta_dist_y
 
-            if city_map.is_solid(map_x, map_y):
-                hit = True
+            if indoors and window_dist == 0.0 and getattr(city_map, 'is_window_cell')(map_x, map_y):
+                # Live portal plane: remember it, let the ray fly through
+                window_dist = marched
+                continue
+
+            if not city_map.is_solid(map_x, map_y):
+                continue
+
+            wall_type = city_map.get_wall_type(map_x, map_y)
+            wall_h = city_map.get_wall_height(wall_type)
+
+            taller_rule = (wall_h > max_height + 1e-6
+                           or (indoors and window_dist > 0.0 and not layers)
+                           or not layers)
+            if taller_rule:
+                max_height = max(max_height, wall_h)
+                # Distance to the boundary crossed INTO the solid cell (= wall face)
+                perp = marched
+                if side == 0:
+                    wall_x = camera.pos.y + perp * ray_dir_y
+                else:
+                    wall_x = camera.pos.x + perp * ray_dir_x
+                wall_x -= math.floor(wall_x)
+                layers.append(make_hit(map_x, map_y, side, perp, wall_x, wall_type))
+                if horizon_y is not None and len(layers) == 1 and window_dist == 0.0:
+                    line_h = (self.height / perp) * wall_h
+                    covered_top = (horizon_y - line_h / 2.0) <= 0.0
+                if covered_top or len(layers) >= self.MAX_LAYERS:
+                    return layers
+
+        if window_dist > 0.0:
+            # Indoors past the glass: keep marching a little for the exterior
+            # view even if tier 1 ran out of steps
+            extra = 0
+            while extra < 40:
+                if side_dist_x < side_dist_y:
+                    side_dist_x += delta_dist_x
+                    map_x += step_x
+                    side = 0
+                    marched = side_dist_x - delta_dist_x
+                else:
+                    side_dist_y += delta_dist_y
+                    map_y += step_y
+                    side = 1
+                    marched = side_dist_y - delta_dist_y
+                extra += 1
+                if not city_map.is_solid(map_x, map_y):
+                    if extra >= 40:
+                        break
+                    continue
+                wall_type = city_map.get_wall_type(map_x, map_y)
+                if side == 0:
+                    wall_x = camera.pos.y + marched * ray_dir_y
+                else:
+                    wall_x = camera.pos.x + marched * ray_dir_x
+                wall_x -= math.floor(wall_x)
+                layers.append(RayHit(True, map_x, map_y, side, max(0.08, marched),
+                                     wall_x, wall_type, city_map.get_wall_height(wall_type),
+                                     ray_dir_x, ray_dir_y,
+                                     is_far=False, win_dist=window_dist))
                 break
+            if not layers or all(not h.hit for h in layers):
+                layers.append(RayHit(False, map_x, map_y, 0, 100.0, 0.0, 0, 1.0,
+                                     ray_dir_x, ray_dir_y, win_dist=window_dist))
+            return layers
 
-        if not hit:
-            return RayHit(False, map_x, map_y, 0, 100.0, 0.0, 0, 1.0, ray_dir_x, ray_dir_y)
+        # ---- Tier 2: coarse far-skyline sampling (stride grows with range) ----
+        if covered_top:
+            return layers
 
-        if side == 0:
-            perp_wall_dist = (map_x - camera.pos.x + (1 - step_x) / 2.0) / ray_dir_x
-            wall_x = camera.pos.y + perp_wall_dist * ray_dir_y
-        else:
-            perp_wall_dist = (map_y - camera.pos.y + (1 - step_y) / 2.0) / ray_dir_y
-            wall_x = camera.pos.x + perp_wall_dist * ray_dir_x
+        forward_now = min(side_dist_x - delta_dist_x, side_dist_y - delta_dist_y)
+        dir_dot = ray_dir_x * camera.dir.x + ray_dir_y * camera.dir.y
+        if dir_dot <= 1e-6:
+            return layers
 
-        wall_x -= math.floor(wall_x)
-        wall_type = city_map.get_wall_type(map_x, map_y)
-        wall_h = city_map.get_wall_height(wall_type)
-        perp_wall_dist = max(0.08, perp_wall_dist)
+        t = max(forward_now, 0.0) + self.FAR_STRIDE
+        stride = self.FAR_STRIDE
+        while t <= self.FAR_MAX_DIST:
+            px = camera.pos.x + ray_dir_x * t
+            py = camera.pos.y + ray_dir_y * t
+            if city_map.is_solid(px, py):
+                fx = int(px)
+                fy = int(py)
+                wall_type = city_map.get_wall_type(fx, fy)
+                wall_h = city_map.get_wall_height(wall_type)
+                if wall_h > max_height + 1e-6 or not layers:
+                    # Face hint from fractional position inside the sampled cell
+                    frac_x = px - math.floor(px)
+                    frac_y = py - math.floor(py)
+                    side = 0 if min(frac_x, 1.0 - frac_x) < min(frac_y, 1.0 - frac_y) else 1
+                    wall_x = frac_y if side == 0 else frac_x
+                    layers.append(RayHit(True, fx, fy, side,
+                                         max(0.08, t * dir_dot), wall_x,
+                                         wall_type, wall_h, ray_dir_x, ray_dir_y,
+                                         is_far=True))
+                break
+            t += stride
+            stride *= 1.12  # distant silhouette needs less sampling precision
 
-        return RayHit(True, map_x, map_y, side, perp_wall_dist, wall_x, wall_type, wall_h, ray_dir_x, ray_dir_y)
+        return layers
 
     def _draw_wall_slice(
         self,
@@ -170,7 +344,8 @@ class Raycaster:
         ambient: float,
         weather: Optional[WeatherSystem],
         flashlight_on: bool,
-        buffer: ScreenBuffer
+        buffer: ScreenBuffer,
+        clip: Optional[Tuple[int, int]] = None
     ):
         texture = get_texture(hit.wall_type)
         line_height = int((self.height / hit.perp_wall_dist) * hit.wall_height)
@@ -182,6 +357,11 @@ class Raycaster:
         side_mult = 0.82 if hit.side == 1 else 1.0
         distance_shade = (1.0 / (1.0 + 0.08 * hit.perp_wall_dist + 0.005 * hit.perp_wall_dist * hit.perp_wall_dist))
         shade = clamp(distance_shade * ambient * side_mult, 0.1, 1.0)
+
+        if hit.is_far:
+            self._draw_far_body(screen_x, hit, draw_start, draw_end,
+                                texture, shade, weather, buffer)
+            return
 
         # Tactical Flashlight conical boost in front of camera
         if flashlight_on:
@@ -199,6 +379,11 @@ class Raycaster:
         y0 = max(0, draw_start)
         y1 = min(self.height - 1, draw_end)
 
+        # Live-window portal: keep only the rows inside the glass opening
+        if clip is not None:
+            y0 = max(y0, clip[0])
+            y1 = min(y1, clip[1])
+
         for y in range(y0, y1 + 1):
             tex_v = (y - draw_start) / float(max(1, draw_end - draw_start))
             tex_u = hit.wall_x
@@ -214,6 +399,69 @@ class Raycaster:
                 bg = _blend_color(bg, weather.fog_color, fog_factor)
 
             buffer.set_pixel(screen_x, y, char, fg, bg)
+
+    def _draw_far_body(
+        self,
+        screen_x: int,
+        hit: RayHit,
+        draw_start: int,
+        draw_end: int,
+        texture,
+        shade: float,
+        weather: Optional[WeatherSystem],
+        buffer: ScreenBuffer
+    ):
+        """
+        Simplified far-skyline slice: blocky two-glyph silhouette tinted from
+        the building's base palette, with a minimum fog haze for depth cueing.
+        """
+        _, _, bg_raw = texture.sample(hit.wall_x, 0.5)
+        fg_raw = texture.fg_colors[len(texture.fg_colors) // 2][0]
+
+        fog_factor = 0.0
+        if weather and weather.fog_density > 0:
+            fog_factor = clamp(1.0 - math.exp(-hit.perp_wall_dist * weather.fog_density), 0.0, 0.95)
+        # Distant skyline always carries a baseline atmospheric haze
+        fog_factor = max(fog_factor, 0.30)
+
+        fg = (int(fg_raw[0] * shade), int(fg_raw[1] * shade), int(fg_raw[2] * shade))
+        bg = (int(bg_raw[0] * shade), int(bg_raw[1] * shade), int(bg_raw[2] * shade))
+        if weather:
+            fg = _blend_color(fg, weather.fog_color, fog_factor)
+            bg = _blend_color(bg, weather.fog_color, fog_factor)
+
+        y0 = max(0, draw_start)
+        y1 = min(self.height - 1, draw_end)
+        col_hash = int(hit.wall_x * 7.99)
+        for y in range(y0, y1 + 1):
+            char = '#' if ((col_hash + y) & 3) else '%'
+            buffer.set_pixel(screen_x, y, char, fg, bg)
+
+    def _draw_sky_span(
+        self,
+        screen_x: int,
+        y0: int,
+        y1: int,
+        zenith_col: Tuple[int, int, int],
+        horizon_col: Tuple[int, int, int],
+        lightning_intensity: float,
+        lightning_col: Tuple[int, int, int],
+        day_night,
+        weather: Optional[WeatherSystem],
+        buffer: ScreenBuffer
+    ):
+        """Sky gradient drawn into a clipped span (seen through window glass)."""
+        for y in range(max(0, y0), min(self.height - 1, y1) + 1):
+            t = y / float(max(1, self.height // 2))
+            r = int(zenith_col[0] + (horizon_col[0] - zenith_col[0]) * t)
+            g = int(zenith_col[1] + (horizon_col[1] - zenith_col[1]) * t)
+            b = int(zenith_col[2] + (horizon_col[2] - zenith_col[2]) * t)
+            sky_col = (r, g, b)
+            if lightning_intensity > 0.0:
+                sky_col = _blend_color(sky_col, lightning_col, lightning_intensity * 0.9)
+            if weather and weather.fog_density > 0.04:
+                sky_col = _blend_color(sky_col, weather.fog_color, min(0.85, weather.fog_density * 6.0))
+            buffer.set_pixel(screen_x, y, ' ', (100, 100, 120), sky_col)
 
     def _render_sky_and_floor(
         self,
@@ -384,6 +632,21 @@ class Raycaster:
 
             spr_screen_x = int((self.width / 2.0) * (1.0 + transform_x / transform_y))
 
+            if isinstance(spr, VolumetricSprite):
+                self._render_volumetric(
+                    spr=spr,
+                    transform_y=transform_y,
+                    spr_screen_x=spr_screen_x,
+                    camera=camera,
+                    horizon_y=horizon_y,
+                    ambient=ambient,
+                    weather=weather,
+                    buffer=buffer,
+                    dist=dist,
+                    dist_sq=dist_sq
+                )
+                continue
+
             spr_h = abs(int(self.height / transform_y * spr.scale_y))
             spr_w = abs(int(self.height / transform_y * spr.scale_x))
 
@@ -425,3 +688,88 @@ class Raycaster:
                                 fg = _blend_color(fg, weather.fog_color, fog_blend)
 
                             buffer.set_pixel(stripe, y, char, fg, None)
+
+    def _render_volumetric(
+        self,
+        spr: VolumetricSprite,
+        transform_y: float,
+        spr_screen_x: int,
+        camera: Camera,
+        horizon_y: int,
+        ambient: float,
+        weather: Optional[WeatherSystem],
+        buffer: ScreenBuffer,
+        dist: float,
+        dist_sq: float
+    ):
+        """
+        Pseudo-volumetric box projection: front and side faces share the
+        projected extent with an angle-dependent split, so the visible corner
+        edge slides across the prop as the camera orbits it.
+        """
+        px_per_unit = self.height / transform_y
+
+        cam_dx = camera.pos.x - spr.x
+        cam_dy = camera.pos.y - spr.y
+        front_share, front_left = spr.visible_faces(cam_dx, cam_dy)
+
+        front_w = len(spr.front_chars[0])
+        side_w = len(spr.side_chars[0])
+        rows = max(spr.height, len(spr.side_chars))
+
+        # Full-front view must match the legacy flat billboard footprint
+        cell_px = (px_per_unit * spr.scale_x) / float(front_w)
+        front_span = cell_px * front_w * front_share
+        side_span = cell_px * side_w * (1.0 - front_share)
+        total_span = front_span + side_span
+
+        spr_h = abs(int(px_per_unit * spr.scale_y * rows / float(max(1, spr.height))))
+        vert_offset = int((spr.vertical_offset * self.height) / transform_y)
+        draw_y0 = int(horizon_y - spr_h / 2.0 - vert_offset)
+
+        x0 = spr_screen_x - int(total_span / 2.0)
+        x1 = x0 + int(total_span)
+
+        distance_shade = 1.0 / (1.0 + 0.09 * dist + 0.005 * dist_sq)
+        shade = 1.0 if spr.is_luminous else clamp(distance_shade * ambient, 0.15, 1.0)
+
+        fog_blend = 0.0
+        if weather and weather.fog_density > 0 and not spr.is_luminous:
+            fog_blend = clamp(1.0 - math.exp(-dist * weather.fog_density), 0.0, 0.9)
+
+        y_start = max(0, draw_y0)
+        y_end = min(self.height - 1, draw_y0 + spr_h)
+
+        for stripe in range(max(0, x0), min(self.width - 1, x1) + 1):
+            if transform_y >= self.z_buffer[stripe]:
+                continue
+
+            in_front = (stripe < x0 + front_span) if front_left else (stripe >= x0 + side_span)
+            if in_front:
+                art_chars, art_fg, art_w = spr.front_chars, spr.front_fg, front_w
+                face_offset = (stripe - x0) if front_left else (stripe - (x0 + side_span))
+                plane_shade = shade
+            else:
+                art_chars, art_fg, art_w = spr.side_chars, spr.side_fg, side_w
+                face_offset = (stripe - (x0 + front_span)) if front_left else (stripe - x0)
+                plane_shade = shade * VolumetricSprite.SIDE_SHADE
+
+            span = max(1.0, front_span if in_front else side_span)
+            tex_x = max(0, min(int(face_offset / span * art_w), art_w - 1))
+
+            for y in range(y_start, y_end + 1):
+                tex_y = int((y - draw_y0) * len(art_chars) / max(1, spr_h))
+                tex_y = max(0, min(tex_y, len(art_chars) - 1))
+
+                char = art_chars[tex_y][tex_x] if tex_x < len(art_chars[tex_y]) else ' '
+                if char == ' ':
+                    continue
+                fg_raw = art_fg[tex_y][tex_x]
+                fg = (
+                    min(255, int(fg_raw[0] * plane_shade)),
+                    min(255, int(fg_raw[1] * plane_shade)),
+                    min(255, int(fg_raw[2] * plane_shade))
+                )
+                if fog_blend > 0.0 and weather:
+                    fg = _blend_color(fg, weather.fog_color, fog_blend)
+                buffer.set_pixel(stripe, y, char, fg, None)

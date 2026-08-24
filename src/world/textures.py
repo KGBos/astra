@@ -432,6 +432,78 @@ def build_botanical_pavilion() -> AsciiTexture:
     return AsciiTexture("BOTANICAL_PAVILION", w, h, chars, fg_colors, bg_colors, height_mult=1.6)
 
 
+def build_interior_wall() -> AsciiTexture:
+    """Warm plaster interior wall with a wainscot rail."""
+    w, h = 8, 8
+    chars = [
+        "~~~~~~~~",
+        "~      ~",
+        "~      ~",
+        "--------",
+        "=      =",
+        "=      =",
+        "=      =",
+        "========"
+    ]
+    fg_colors = []
+    bg_colors = []
+    for y in range(h):
+        fg_row = []
+        bg_row = []
+        for x in range(w):
+            c = chars[y][x]
+            if c == '-':
+                fg_row.append((120, 90, 60))    # wainscot rail
+                bg_row.append((45, 32, 22))
+            elif c == '=':
+                fg_row.append((95, 70, 48))     # lower panel trim
+                bg_row.append((38, 28, 20))
+            elif c == '~':
+                fg_row.append((150, 130, 105))  # upper plaster edge
+                bg_row.append((52, 42, 34))
+            else:
+                fg_row.append((185, 165, 135))  # warm plaster
+                bg_row.append((58, 47, 38))
+        fg_colors.append(fg_row)
+        bg_colors.append(bg_row)
+
+    return AsciiTexture("INTERIOR_WALL", w, h, chars, fg_colors, bg_colors, height_mult=1.0)
+
+
+def build_doorway() -> AsciiTexture:
+    """Revolving-door threshold: glass panes with a bright EXIT bar."""
+    w, h = 4, 4
+    chars = [
+        "|==|",
+        "|  |",
+        "|  |",
+        "[!!]"
+    ]
+    fg_colors = []
+    bg_colors = []
+    for y in range(h):
+        fg_row = []
+        bg_row = []
+        for x in range(w):
+            c = chars[y][x]
+            if c == '!':
+                fg_row.append((120, 255, 140))  # glowing EXIT bar
+                bg_row.append((15, 40, 20))
+            elif c in ('|', '[', ']'):
+                fg_row.append((200, 210, 220))
+                bg_row.append((30, 35, 45))
+            elif c == '=':
+                fg_row.append((150, 170, 190))
+                bg_row.append((25, 30, 40))
+            else:
+                fg_row.append((160, 230, 255))  # clear glass
+                bg_row.append((18, 26, 36))
+        fg_colors.append(fg_row)
+        bg_colors.append(bg_row)
+
+    return AsciiTexture("DOORWAY", w, h, chars, fg_colors, bg_colors, height_mult=1.0)
+
+
 # Texture registry
 TEXTURE_REGISTRY = {
     1: build_skyscraper_glass(),
@@ -445,6 +517,8 @@ TEXTURE_REGISTRY = {
     9: build_industrial_silo(),
     10: build_marina_dock(),
     11: build_botanical_pavilion(),
+    12: build_interior_wall(),
+    13: build_doorway(),
 }
 
 

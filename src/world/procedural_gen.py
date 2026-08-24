@@ -21,6 +21,7 @@ from src.entities.sprite import (
     make_park_bench_sprite,
     make_streetlamp_sprite,
     make_tree_sprite,
+    make_vending_machine_sprite,
 )
 
 
@@ -553,6 +554,12 @@ class ProceduralCityGenerator:
                     props.append(make_fire_hydrant_sprite(col - 1.2, mid_y))
                     if rng.random() > 0.5:
                         props.append(make_tree_sprite(col + 2.2, mid_y))
+                    # Pseudo-volumetric drink machine hugging the east building
+                    # wall, front panel facing west toward the avenue (-X)
+                    iy = int(mid_y)
+                    if rng.random() > 0.55 and walls[iy][col + 2] != 0:
+                        props.append(make_vending_machine_sprite(
+                            col + 1.7, mid_y + 0.5, facing_angle=math.pi))
 
     def _finalize_landmarks(
         self,
