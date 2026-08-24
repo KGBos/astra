@@ -38,6 +38,19 @@ class TestAsciiMonoMode(unittest.TestCase):
         non_ascii = [c for c in frame if ord(c) > 127]
         self.assertEqual(non_ascii, [])
 
+    def test_sky_glyphs_stay_ascii_by_contract(self):
+        """Sky renderer only emits hardcoded ASCII glyphs; locks N1 contract."""
+        import inspect
+        from src.engine import raycaster
+        src = inspect.getsource(raycaster.Raycaster._render_sky_and_floor)
+        for ch in ("'.'", "'*'", "' '"):
+            self.assertIn(ch, src)
+        for line in src.splitlines():
+            stripped = line.strip()
+            if "p.char" in stripped:
+                self.assertTrue(all(ord(c) < 128 for c in stripped),
+                                f"non-ASCII sky glyph introduced: {stripped!r}")
+
 
 class TestNoFillMode(unittest.TestCase):
     def _frame(self, use_background):
