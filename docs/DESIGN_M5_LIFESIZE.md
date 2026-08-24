@@ -26,6 +26,19 @@ Current world is 42×42 tiles ≈ a diorama: crossable on foot in ~9s, roads 2 t
 - NPC/pedestrian density proportional to district area; walkable-scan must remain O(cells) cheap (320² = 102k cells, fine).
 - Interiors: tower lobbies as tall interior volumes; street-level shops on collectors.
 
+> **Cycle C status (landed):** traffic spawns from `CityMap.road_lanes()` lane
+> bands with right-hand headings and class cruise 13/9/5 m/s; fleet size =
+> round(total lane-length / 120) clamped [24, 80]. Pedestrian population
+> integrates walkable area per district (dense ~1/900 m², industrial/waterfront
+> ~1/2700 m²) clamped [40, 140] via a direct-grid O(cells) survey (~10 ms at
+> 320²). Wall masses with >=25 m facades gain enterable `LobbySpace` halls
+> (8 m ceiling texture) through street-reachable doorways. Floor-caster profile
+> pass: analytic star columns, row-hoisted ray spans, raw-grid probes, inline
+> row-constant fog blend — cProfile @160x50 went 66.6 -> 107.5 FPS profiled
+> (8.6M -> 2.6M calls). CI gained a `benchmark` job running
+> `tools/bench_matrix.py` (80x32 / 120x40 / 160x50 x 300 frames); it fails only
+> on crashes or <30 FPS at any size.
+
 > **Cycle B status (landed):** all structural items above are implemented in
 > `procedural_gen.py`. Collector corridors are seeded per-corridor (~62%) so
 > open corridors keep full super-block faces (18–48 m) that local lanes split
@@ -38,23 +51,24 @@ Current world is 42×42 tiles ≈ a diorama: crossable on foot in ~9s, roads 2 t
 > `CityMap.road_lanes()` for the Cycle C traffic retune.
 
 ## 5. Performance Budget (non-negotiable, lands WITH this milestone)
-- Target ≥60 FPS @ 160×50 viewport, full weather, on reference hardware.
-- Near-tier DDA steps scale with sight distance (≈28–34), far-tier stride sampling carries the skyline; floor-casting remains the hot suspect — profile before optimizing.
-- Benchmark matrix added to CI: 80×32, 120×40, 160×50.
+- Target ≥60 FPS @ 160×50 viewport, full weather, on reference hardware. (**Cycle C: met — 202 FPS median @160×50 across 5 runs unprofiled; see §4 status.**)
+- Near-tier DDA steps scale with sight distance (≈28–34), far-tier stride sampling carries the skyline; floor-casting remains the hot suspect — profile before optimizing. (**Cycle C: profiled; floor-caster fixes applied first.**)
+- Benchmark matrix added to CI: 80×32, 120×40, 160×50. (**Cycle C: `benchmark` job + `tools/bench_matrix.py`.**)
 
 ## 6. Migration Checklist
 - [x] textures.py height_mult table → meters (Cycle A)
 - [x] camera.py speeds/eye/jump/radius (Cycle A)
 - [x] raycaster horizon/projection constants audit for non-square assumptions (Cycle A: FOV-derived `pixels_per_meter_at_1m`, eye-height-anchored wall/sprite/floor projection)
-- [ ] traffic_manager spawn/lane math off ns_road_cols hardcode (Cycle A interim: road-index cruise classes 13/9/5 m/s; **Cycle B: `road_lanes()` / `road_segments` now expose measured centre-lines, widths, classes, lane offsets and spans — consumer retune lands in Cycle C**)
-- [ ] pedestrian_manager walkable scan + archetype districts (scan verified <0.5 s at 320² and unchanged API in Cycle B; district archetypes Cycle C)
+- [x] traffic_manager spawn/lane math off ns_road_cols hardcode (**Cycle C: spawns from `road_lanes()` bands with right-hand headings; `cruise_speed_for` is a real class lookup over `road_segments`; lane-length fleet budget clamped [24, 80]**)
+- [x] pedestrian_manager walkable scan + archetype districts (scan verified <0.5 s at 320²; **Cycle C: district-proportional quotas, dense/sparse rates, auto count clamped [40, 140]**)
 - [x] procedural_gen full rewrite (v2) behind seed contract (Cycle B: arterial/collector/local hierarchy with jittered corridors, irregular blocks, center-out zoning, park transverses, harbor quay/piers/bollards, landmark lattice at 150–400 m spacing; deterministic byte-identical grids; 320² generation ≈25–40 ms)
 - [x] hud minimap zoom (fixed radius is useless at city scale) + distance readouts (Cycle A: `M` cycles OFF → NEAR 31 m → FAR 95 m auto-scaled radar)
 - [ ] landmark registry spacing + compass ranges (Cycle B: spacing enforced ≥150 m pairwise, ≤400 m on the default map, true footprints recorded; compass ranges unchanged)
 - [x] vehicle_controller top speeds (m/s) + cockpit gauges (Cycle A: km/h readout, type tops 16/14/12/9 m/s)
-- [ ] tests: determinism, spawn safety, benchmark matrix (determinism + spawn safety landed Cycle A; **Cycle B: `tests/test_generator_v2.py` adds hierarchy stats measured from floors grid, district height gradient, park/harbor presence, landmark spacing, road-connectivity BFS, interiors compatibility**; CI benchmark matrix deferred — no CI change this cycle)
+- [x] interiors: tower lobbies as tall interior volumes (**Cycle C: `LobbySpace` for >=25 m masses via street-reachable tower doorways; 8 m lobby texture id 104**)
+- [x] tests: determinism, spawn safety, benchmark matrix (determinism + spawn safety landed Cycle A; hierarchy/district/spacing suites landed Cycle B; **Cycle C: lane-band/right-hand/class-speed spawning, density bounds + proportionality, lobby existence + enter/exit flow, bench-matrix tool test; CI `benchmark` job live**)
 
 ## 7. Execution Plan (each = builder agents in worktrees → review gate → merge)
 1. **Cycle A — Honest Units**: camera/speeds/textures/map-size plumbing on existing layout. Playable checkpoint of the feel.
 2. **Cycle B — Generator v2**: hierarchy, irregular blocks, districts, landmarks at scale.
-3. **Cycle C — Density & Budget**: traffic/NPC retune, interiors lobbies, perf budget enforcement + CI benchmarks.
+3. **Cycle C — Density & Budget** (**landed**): traffic/NPC retune, interiors lobbies, perf budget enforcement + CI benchmarks.

@@ -60,9 +60,13 @@ class Game:
         self.camera.set_direction(math.pi / 2.0)  # Face South (+Y) down avenue
         self.camera.pos.x, self.camera.pos.y = self.city_map.spawn_pos
 
-        self.vehicle_count = 18
+        # Cycle C density retune: None lets each manager derive population
+        # from measured lane length / district walkable area
+        self.vehicle_count = None
+        self.pedestrian_count = None
         self.traffic = TrafficManager(self.city_map, vehicle_count=self.vehicle_count)
-        self.pedestrians = PedestrianManager(self.city_map, pedestrian_count=28)
+        self.pedestrians = PedestrianManager(self.city_map,
+                                             pedestrian_count=self.pedestrian_count)
         self.day_night = DayNightCycle(start_hour=22.5, time_speed=0.4)
         self.weather = WeatherSystem(weather=WeatherType.CLEAR)
 
@@ -103,7 +107,8 @@ class Game:
             self.vehicle_ctrl.exit_vehicle(self.camera)
         self.city_map = CityMap(width=self.city_map.width, height=self.city_map.height, seed=seed)
         self.traffic = TrafficManager(self.city_map, vehicle_count=self.vehicle_count)
-        self.pedestrians = PedestrianManager(self.city_map, pedestrian_count=28)
+        self.pedestrians = PedestrianManager(self.city_map,
+                                             pedestrian_count=self.pedestrian_count)
         self.camera.pos.x, self.camera.pos.y = self.city_map.spawn_pos
 
     def _active_map(self):

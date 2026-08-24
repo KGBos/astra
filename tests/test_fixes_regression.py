@@ -140,12 +140,13 @@ class TestFixesRegression(unittest.TestCase):
         self.assertFalse(kc5.has_event(KeyAction.QUIT))
 
     def test_regenerate_preserves_vehicle_count(self):
-        """Guards the fix where regenerate_city dropped vehicle_count to the TrafficManager default."""
+        """Guards the Cycle C fleet contract: regeneration with the identical
+        seed keeps the lane-derived vehicle count stable (auto budget mode)."""
         g = Game(width=64, height=24)
         before = len(g.traffic.vehicles)
-        g.regenerate_city("parity")
+        g.regenerate_city(g.city_map.seed)
         self.assertEqual(len(g.traffic.vehicles), before)
-        self.assertEqual(before, 18)
+        self.assertGreaterEqual(before, 24)
 
 
 if __name__ == "__main__":

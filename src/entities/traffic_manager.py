@@ -6,7 +6,7 @@ import math
 import random
 from typing import List, Tuple, Optional
 from src.entities.sprite import Sprite, make_streetlamp_sprite, make_tree_sprite, make_fire_hydrant_sprite
-from src.entities.car import Vehicle, VehicleType, cruise_speed_for
+from src.entities.car import Vehicle, VehicleType, CRUISE_BY_CLASS, COLLECTOR_CRUISE
 from src.entities.npc import NPC, build_default_npcs
 from src.world.city_map import FloorType
 
@@ -14,15 +14,39 @@ DRIVABLE_FLOORS = (FloorType.ROAD_NS, FloorType.ROAD_EW,
                    FloorType.INTERSECTION, FloorType.BRIDGE)
 SPAWN_RETRY_LIMIT = 10
 
+# Fleet sizing: one vehicle per METRES_PER_VEHICLE of total lane length,
+# clamped so small towns keep life and mega-maps stay cheap.
+METRES_PER_VEHICLE = 120.0
+VEHICLE_COUNT_MIN = 24
+VEHICLE_COUNT_MAX = 80
+
+
+def compute_vehicle_budget(city_map) -> int:
+    """Lane-derived fleet size: round(total lane-length / 120 m) clamped [24, 80].
+
+    Total lane length counts every travel lane separately (segment span times
+    its right-hand lane offsets), so arterials carry proportionally more
+    vehicles than local lanes.
+    """
+    total_lane_m = 0.0
+    for lane in city_map.road_lanes():
+        lo, hi = lane["span"]
+        total_lane_m += (hi - lo + 1) * len(lane["lane_offsets_m"])
+    return max(VEHICLE_COUNT_MIN, min(VEHICLE_COUNT_MAX,
+                                      round(total_lane_m / METRES_PER_VEHICLE)))
+
 
 class TrafficManager:
-    def __init__(self, city_map, vehicle_count: int = 16):
+    def __init__(self, city_map, vehicle_count: Optional[int] = None):
         self.city_map = city_map
         self.vehicles: List[Vehicle] = []
         self.static_props: List[Sprite] = []
         self.npcs: List[NPC] = build_default_npcs()
 
         self._spawn_static_props()
+        if vehicle_count is None:
+            vehicle_count = compute_vehicle_budget(city_map)
+        self.vehicle_count = vehicle_count
         self._spawn_vehicles(vehicle_count)
 
     def _spawn_static_props(self):
@@ -65,33 +89,69 @@ class TrafficManager:
         return None
 
     def _spawn_vehicles(self, count: int):
+        """Spawns vehicles in measured lanes from city_map.road_lanes().
+
+        Each lane offset fixes the cross-axis coordinate and, under right-hand
+        traffic, the travel heading: a lane west of an NS centre-line runs
+        southbound, east of it northbound; south of an EW centre-line eastbound,
+        north of it westbound. Zero-offset local lanes take either direction.
+        The drivable-floor guard re-rolls along-lane positions so no vehicle
+        ever starts on water, piers, or sidewalks.
+        """
         vtypes = [VehicleType.TAXI, VehicleType.CYBER_SEDAN, VehicleType.POLICE, VehicleType.BUS]
 
         candidates = []
 
-        def ns_slot(col: float, dy):
-            def mk():
-                return (col, random.uniform(3, self.city_map.height - 4),
-                        random.choice(vtypes), dy)
-            return self._road_candidate(mk)
+        def lane_slot(axis: str, cross_m: float, heading, road_class: str,
+                     center_m: float, offset_m: float, span: Tuple[int, int]):
+            lo, hi = span
 
-        def ew_slot(row: float, dx):
             def mk():
-                return (random.uniform(3, self.city_map.width - 4), row,
-                        random.choice(vtypes), dx)
-            return self._road_candidate(mk)
+                if axis == "NS":
+                    return (cross_m, random.uniform(lo, hi),
+                            random.choice(vtypes), heading)
+                return (random.uniform(lo, hi), cross_m,
+                        random.choice(vtypes), heading)
+            cand = self._road_candidate(mk)
+            if cand is not None:
+                return cand + (axis, road_class, center_m, offset_m)
+            return None
 
-        for col in self.city_map.ns_road_cols:
-            candidates.append(ns_slot(col + 0.5, (0, 1)))
-            candidates.append(ns_slot(col + 1.5, (0, -1)))
-        for row in self.city_map.ew_road_rows:
-            candidates.append(ew_slot(row + 0.5, (1, 0)))
-            candidates.append(ew_slot(row + 1.5, (-1, 0)))
+        for lane in self.city_map.road_lanes():
+            axis = lane["axis"]
+            road_class = lane["road_class"]
+            center_m = lane["center_m"]
+            for offset_m in lane["lane_offsets_m"]:
+                cross_m = center_m + offset_m
+                if axis == "NS":
+                    if offset_m < 0:
+                        heading = (0, 1)
+                    elif offset_m > 0:
+                        heading = (0, -1)
+                    else:
+                        heading = (0, random.choice((1, -1)))
+                else:
+                    if offset_m > 0:
+                        heading = (1, 0)
+                    elif offset_m < 0:
+                        heading = (-1, 0)
+                    else:
+                        heading = (random.choice((1, -1)), 0)
+                candidates.append(lane_slot(axis, cross_m, heading, road_class,
+                                            center_m, offset_m, lane["span"]))
+
         candidates = [c for c in candidates if c is not None]
         random.shuffle(candidates)
-        for x, y, vtype, heading in candidates[:max(0, count)]:
+        # Fleet is capped by available lane slots; the lane-length budget
+        # simply requests up to `count` placements across them.
+        for x, y, vtype, heading, axis, road_class, center_m, offset_m \
+                in candidates[:max(0, count)]:
             vehicle = Vehicle(x, y, vtype, heading)
-            cruise = cruise_speed_for(self.city_map, x, y, heading)
+            vehicle.road_class = road_class
+            vehicle.lane_axis = axis
+            vehicle.lane_center_m = center_m
+            vehicle.lane_offset_m = offset_m
+            cruise = CRUISE_BY_CLASS.get(road_class, COLLECTOR_CRUISE)
             vehicle.speed = cruise
             vehicle.target_speed = cruise
             vehicle.current_speed = cruise * 0.5

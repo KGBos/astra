@@ -5,61 +5,136 @@ Author: Darius Thorne (Procedural World & City Generation Specialist 📐)
 
 import math
 import random
-from typing import List, Optional, Tuple
+import time
+from typing import Dict, List, Optional, Tuple
 
 from src.entities.pedestrian import Pedestrian, PedestrianArchetype, PedestrianState
 from src.entities.sprite import Sprite
 from src.world.city_map import CityMap, FloorType
+
+# Crowd density contract (M5 Cycle C): dense districts carry roughly one
+# pedestrian per 900 m2 of walkable ground, industrial sprawl one per 2700 m2.
+DENSE_PED_PER_SQM = 1.0 / 900.0
+SPARSE_PED_PER_SQM = 1.0 / 2700.0
+SPARSE_DISTRICTS = ("INDUSTRIAL DOCKLANDS", "WATERFRONT MARINA")
+PED_COUNT_MIN = 40
+PED_COUNT_MAX = 140
+
+WALKABLE_FLOORS = (FloorType.SIDEWALK, FloorType.PLAZA_TILES,
+                   FloorType.PARK_GRASS, FloorType.COBBLESTONE,
+                   FloorType.WOOD_DECK)
+
+DISTRICT_ARCHETYPES = {
+    "CYBER-DOWNTOWN": [PedestrianArchetype.CYBERPUNK, PedestrianArchetype.CORP_SUIT, PedestrianArchetype.CYBER_ANDROID],
+    "FINANCIAL CORE": [PedestrianArchetype.CORP_SUIT, PedestrianArchetype.POLICE_OFFICER, PedestrianArchetype.CYBER_ANDROID],
+    "NEON ENTERTAINMENT": [PedestrianArchetype.CYBERPUNK, PedestrianArchetype.STREET_VENDOR, PedestrianArchetype.CASUAL_CITIZEN],
+    "HISTORIC BROWNSTONES": [PedestrianArchetype.CASUAL_CITIZEN, PedestrianArchetype.STREET_VENDOR],
+    "INDUSTRIAL DOCKLANDS": [PedestrianArchetype.CYBER_ANDROID, PedestrianArchetype.POLICE_OFFICER],
+    "CENTRAL ASTRA PLAZA": [PedestrianArchetype.CASUAL_CITIZEN, PedestrianArchetype.CYBERPUNK, PedestrianArchetype.STREET_VENDOR]
+}
+
+
+def survey_district_walkable(city_map) -> Tuple[Dict[str, int], Dict[str, List[Tuple[int, int]]]]:
+    """Single O(cells) pass over the grid returning walkable area in m2 and the
+    tile list per district. Walkable mirrors the sidewalk predicate used by the
+    crowd sim (open, dry land: sidewalks, plazas, lawns, cobbles, piers)."""
+    areas: Dict[str, int] = {}
+    tiles: Dict[str, List[Tuple[int, int]]] = {}
+    walls = city_map.walls
+    floors = city_map.floors
+    districts = city_map.districts
+    width = city_map.width
+    height = city_map.height
+    for y in range(2, height - 2):
+        wall_row = walls[y]
+        floor_row = floors[y]
+        district_row = districts[y]
+        for x in range(2, width - 2):
+            if wall_row[x] != 0:
+                continue
+            ftype = floor_row[x]
+            if ftype not in WALKABLE_FLOORS:
+                continue
+            district = district_row[x] or "ASTRA METROPOLIS"
+            areas[district] = areas.get(district, 0) + 1
+            tiles.setdefault(district, []).append((x, y))
+    return areas, tiles
+
+
+def compute_pedestrian_budget(areas: Dict[str, int]) -> int:
+    """Auto population from measured walkable areas, clamped [40, 140]."""
+    weighted = 0.0
+    for district, area_sqm in areas.items():
+        rate = SPARSE_PED_PER_SQM if district in SPARSE_DISTRICTS else DENSE_PED_PER_SQM
+        weighted += area_sqm * rate
+    return max(PED_COUNT_MIN, min(PED_COUNT_MAX, round(weighted)))
+
+
+def _apportion(total: int, weights: Dict[str, float]) -> Dict[str, int]:
+    """Largest-remainder split of `total` proportional to weights (sums exactly)."""
+    weight_sum = sum(weights.values())
+    if weight_sum <= 0 or total <= 0:
+        return {district: 0 for district in weights}
+    quotas = {}
+    assigned = 0
+    remainders = []
+    for district, weight in weights.items():
+        exact = total * weight / weight_sum
+        base = int(exact)
+        quotas[district] = base
+        remainders.append((exact - base, district))
+        assigned += base
+    remainders.sort(reverse=True)
+    for _, district in remainders[:total - assigned]:
+        quotas[district] += 1
+    return quotas
 
 
 class PedestrianManager:
     """
     Manages autonomous sidewalk pedestrian populations across all city districts,
     handling spatial density, traffic crosswalks, interaction queries, and sprite rendering.
+
+    Population scales with measured walkable area per district (dense ~1 ped /
+    900 m2, industrial sparse) and each district's share of pedestrians is
+    proportional to its density-weighted share of walkable ground.
     """
 
-    def __init__(self, city_map: CityMap, pedestrian_count: int = 24):
+    def __init__(self, city_map: CityMap, pedestrian_count: Optional[int] = None,
+                 spawn_clock: bool = False):
         self.city_map = city_map
         self.pedestrians: List[Pedestrian] = []
+        self.last_spawn_seconds: Optional[float] = None
+        started = time.perf_counter() if spawn_clock else None
         self._spawn_pedestrians(pedestrian_count)
+        if spawn_clock:
+            self.last_spawn_seconds = time.perf_counter() - started
 
-    def _spawn_pedestrians(self, count: int):
-        # District archetype weight mapping
-        archetype_map = {
-            "CYBER-DOWNTOWN": [PedestrianArchetype.CYBERPUNK, PedestrianArchetype.CORP_SUIT, PedestrianArchetype.CYBER_ANDROID],
-            "FINANCIAL CORE": [PedestrianArchetype.CORP_SUIT, PedestrianArchetype.POLICE_OFFICER, PedestrianArchetype.CYBER_ANDROID],
-            "NEON ENTERTAINMENT": [PedestrianArchetype.CYBERPUNK, PedestrianArchetype.STREET_VENDOR, PedestrianArchetype.CASUAL_CITIZEN],
-            "HISTORIC BROWNSTONES": [PedestrianArchetype.CASUAL_CITIZEN, PedestrianArchetype.STREET_VENDOR],
-            "INDUSTRIAL DOCKLANDS": [PedestrianArchetype.CYBER_ANDROID, PedestrianArchetype.POLICE_OFFICER],
-            "CENTRAL ASTRA PLAZA": [PedestrianArchetype.CASUAL_CITIZEN, PedestrianArchetype.CYBERPUNK, PedestrianArchetype.STREET_VENDOR]
-        }
+    def _spawn_pedestrians(self, count: Optional[int]):
+        areas, tiles = survey_district_walkable(self.city_map)
+        if not tiles:
+            tiles = {"ASTRA METROPOLIS": [(5, 5), (6, 5), (5, 6)]}
+            areas = {"ASTRA METROPOLIS": 3}
 
-        # Find valid walkable sidewalk tiles (not road, not wall, not water)
-        walkable_tiles = []
-        for y in range(2, self.city_map.height - 2):
-            for x in range(2, self.city_map.width - 2):
-                ftype = self.city_map.get_floor_type(x, y)
-                if not self.city_map.is_solid(x, y) and not self.city_map.is_water(x, y):
-                    if ftype in (FloorType.SIDEWALK, FloorType.PLAZA_TILES, FloorType.PARK_GRASS, FloorType.COBBLESTONE, FloorType.WOOD_DECK):
-                        walkable_tiles.append((x, y))
+        if count is None:
+            count = compute_pedestrian_budget(areas)
+        weights: Dict[str, float] = {}
+        for district, area_sqm in areas.items():
+            rate = SPARSE_PED_PER_SQM if district in SPARSE_DISTRICTS else DENSE_PED_PER_SQM
+            weights[district] = area_sqm * rate
+        quotas = _apportion(count, weights)
 
-        if not walkable_tiles:
-            walkable_tiles = [(5, 5), (6, 5), (5, 6)]
-
-        random.shuffle(walkable_tiles)
-
-        for i in range(min(count, len(walkable_tiles))):
-            gx, gy = walkable_tiles[i]
-            district = self.city_map.get_district_at(gx, gy)
-            candidates = archetype_map.get(district, list(PedestrianArchetype))
-            archetype = random.choice(candidates)
-
-            # Spawn slightly offset within grid cell
-            px = gx + random.uniform(0.2, 0.8)
-            py = gy + random.uniform(0.2, 0.8)
-
-            ped = Pedestrian(px, py, archetype=archetype)
-            self.pedestrians.append(ped)
+        for district, quota in quotas.items():
+            district_tiles = tiles.get(district)
+            if not district_tiles or quota <= 0:
+                continue
+            candidates = DISTRICT_ARCHETYPES.get(district, list(PedestrianArchetype))
+            picked = random.sample(district_tiles, min(quota, len(district_tiles)))
+            for gx, gy in picked:
+                archetype = random.choice(candidates)
+                px = gx + random.uniform(0.2, 0.8)
+                py = gy + random.uniform(0.2, 0.8)
+                self.pedestrians.append(Pedestrian(px, py, archetype=archetype))
 
     def update(self, dt: float):
         for ped in self.pedestrians:

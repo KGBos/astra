@@ -37,6 +37,13 @@ EXIT_RADIUS = 0.60    # distance from interior door center that triggers exit
 # Minimum footprint for furniture placement (smaller masses stay bare)
 FURNITURE_MIN_SIZE = 6
 
+# Tower lobby contract (M5 Cycle C): wall masses containing a facade at least
+# this tall become double-height lobby interiors instead of storefront rooms.
+TOWER_LOBBY_MIN_HEIGHT_M = 25.0
+LOBBY_WALL_TEXTURE = 104      # build_tower_lobby_interior(): 8 m ceiling volume
+MAX_TOWER_LOBBIES = 8         # enterable-tower cap per city
+STREET_REACH_CELLS = 64       # bounded BFS budget for door reachability
+
 
 class Doorway:
     __slots__ = ('bld_id', 'ext', 'inner', 'side')
@@ -126,6 +133,28 @@ BUILDING_THEMES = (
 )
 
 
+def _reception_desk_sprite(x: float, y: float) -> List[Sprite]:
+    chars = [
+        "  * * SKY LOBBY * *  ",
+        " [TOWER DIRECTORY] ",
+        "  |==[DESK]==|  (^) ",
+        "===================="
+    ]
+    fg = [
+        [(160, 230, 255) for _ in range(20)],
+        [(120, 255, 200) for _ in range(20)],
+        [(220, 180, 100) for _ in range(20)],
+        [(150, 150, 160) for _ in range(20)]
+    ]
+    return [Sprite(x, y, "TOWER_DESK", chars, fg,
+                   scale_x=0.14, scale_y=0.6, is_luminous=True)]
+
+
+LOBBY_THEME = InteriorTheme(
+    "TOWER_LOBBY", "TOWER SKY LOBBY // 8 M VOLUME", "^",
+    LOBBY_WALL_TEXTURE, _reception_desk_sprite)
+
+
 def theme_for_building(bld_id: int) -> InteriorTheme:
     """Deterministic theme rotation across enterable buildings."""
     return BUILDING_THEMES[bld_id % len(BUILDING_THEMES)]
@@ -143,6 +172,7 @@ class InteriorSpace:
         self.h = bh
         self.doorway = doorway
         self.theme = theme_for_building(bld_id)
+        self.is_lobby = False
 
         rng = random.Random(seed * 7919 + bld_id)
         grid = [[CELL_WALL for _ in range(bw)] for _ in range(bh)]
@@ -182,6 +212,21 @@ class InteriorSpace:
         if 0 <= lx < self.w and 0 <= ly < self.h:
             return self.grid[ly][lx]
         return None
+
+
+class LobbySpace(InteriorSpace):
+    """Double-height ground-floor hall carved from a downtown tower mass.
+
+    Same footprint mechanics as a storefront room; the lobby theme's wall
+    texture projects an 8 m ceiling volume, so the space reads as a tall
+    atrium from inside while windows stay live portals to the street.
+    """
+
+    def __init__(self, bld_id: int, bx0: int, by0: int, bw: int, bh: int,
+                 doorway: Optional[Doorway], seed: int):
+        super().__init__(bld_id, bx0, by0, bw, bh, doorway, seed)
+        self.theme = LOBBY_THEME
+        self.is_lobby = True
 
 
 class InteriorView:
@@ -235,6 +280,81 @@ class InteriorView:
         return self.space.code_at(ix, iy) == CELL_WINDOW
 
 
+def flood_wall_mass(walls, w: int, h: int, sx: int, sy: int,
+                    visited) -> List[Tuple[int, int]]:
+    """Connected wall cells containing (sx, sy), marking them visited."""
+    stack = [(sx, sy)]
+    visited[sy][sx] = True
+    mass: List[Tuple[int, int]] = []
+    while stack:
+        cx, cy = stack.pop()
+        mass.append((cx, cy))
+        for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
+            if 0 <= nx < w and 0 <= ny < h and not visited[ny][nx] and walls[ny][nx] != 0:
+                visited[ny][nx] = True
+                stack.append((nx, ny))
+    return mass
+
+
+def find_street_door(world, mass: List[Tuple[int, int]],
+                     bx0: int, by0: int, bx1: int, by1: int):
+    """First perimeter cell (scan order => deterministic) with street access.
+
+    Returns ((cx, cy), side) or (None, 0)."""
+    walls = world.walls
+    w = world.width
+    h = world.height
+    mass_set = set(mass)
+
+    def walkable(ix, iy):
+        return (0 <= ix < w and 0 <= iy < h
+                and walls[iy][ix] == 0
+                and world.get_floor_type(ix, iy) != FloorType.WATER)
+
+    for cy in range(by0, by1 + 1):
+        for cx in range(bx0, bx1 + 1):
+            if walls[cy][cx] == 0 or (cx, cy) not in mass_set:
+                continue
+            for sidx, (ox, oy) in enumerate(((1, 0), (0, 1), (-1, 0), (0, -1))):
+                if walkable(cx + ox, cy + oy):
+                    return (cx, cy), sidx
+    return None, 0
+
+
+def door_reaches_street(world, door: Tuple[int, int], side: int) -> bool:
+    """Bounded BFS from the door's outside neighbor looking for road floor.
+
+    Sealed courtyards and tower podium moats are open ground but never touch
+    a road, so doors facing them would be unreachable; those fail this check.
+    """
+    walls = world.walls
+    w = world.width
+    h = world.height
+    ox, oy = ((1, 0), (0, 1), (-1, 0), (0, -1))[side]
+    start = (door[0] + ox, door[1] + oy)
+    if not (0 <= start[0] < w and 0 <= start[1] < h):
+        return False
+    if walls[start[1]][start[0]] != 0:
+        return False
+    road_floors = (FloorType.ROAD_NS, FloorType.ROAD_EW,
+                   FloorType.INTERSECTION, FloorType.BRIDGE)
+    seen = {start}
+    queue = [start]
+    while queue:
+        cx, cy = queue.pop()
+        if world.get_floor_type(cx, cy) in road_floors:
+            return True
+        if len(seen) >= STREET_REACH_CELLS:
+            break
+        for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
+            if (0 <= nx < w and 0 <= ny < h and (nx, ny) not in seen
+                    and walls[ny][nx] == 0
+                    and world.get_floor_type(nx, ny) != FloorType.WATER):
+                seen.add((nx, ny))
+                queue.append((nx, ny))
+    return False
+
+
 def detect_doorways(world, max_doors: int = 8) -> List[Doorway]:
     """
     Deterministically picks enterable buildings: connected wall masses with a
@@ -246,11 +366,6 @@ def detect_doorways(world, max_doors: int = 8) -> List[Doorway]:
     visited = [[False] * w for _ in range(h)]
     doorways: List[Doorway] = []
 
-    def walkable(ix, iy):
-        return (0 <= ix < w and 0 <= iy < h
-                and walls[iy][ix] == 0
-                and world.get_floor_type(ix, iy) != FloorType.WATER)
-
     for sy in range(1, h - 1):
         if len(doorways) >= max_doors:
             break
@@ -260,17 +375,7 @@ def detect_doorways(world, max_doors: int = 8) -> List[Doorway]:
             if visited[sy][sx] or walls[sy][sx] == 0:
                 continue
 
-            # Flood-fill this wall mass
-            stack = [(sx, sy)]
-            mass: List[Tuple[int, int]] = []
-            visited[sy][sx] = True
-            while stack:
-                cx, cy = stack.pop()
-                mass.append((cx, cy))
-                for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
-                    if 0 <= nx < w and 0 <= ny < h and not visited[ny][nx] and walls[ny][nx] != 0:
-                        visited[ny][nx] = True
-                        stack.append((nx, ny))
+            mass = flood_wall_mass(walls, w, h, sx, sy, visited)
 
             if not (6 <= len(mass) <= 90):
                 continue
@@ -281,62 +386,103 @@ def detect_doorways(world, max_doors: int = 8) -> List[Doorway]:
             if bx1 - bx0 < 2 or by1 - by0 < 2:
                 continue
 
-            # First perimeter cell (scan order => deterministic) with street access
-            door = None
-            side = 0
-            for cy in range(by0, by1 + 1):
-                for cx in range(bx0, bx1 + 1):
-                    if walls[cy][cx] == 0 or (cx, cy) not in set(mass):
-                        continue
-                    for sidx, (ox, oy) in enumerate(((1, 0), (0, 1), (-1, 0), (0, -1))):
-                        if walkable(cx + ox, cy + oy):
-                            door = (cx, cy)
-                            side = sidx
-                            break
-                    if door:
-                        break
-                if door:
-                    break
-
+            door, side = find_street_door(world, mass, bx0, by0, bx1, by1)
             if not door:
                 continue
 
-            # Interior threshold: step from door toward the mass centroid
-            cx_avg = sum(p[0] for p in mass) / len(mass)
-            cy_avg = sum(p[1] for p in mass) / len(mass)
-            tx = 1 if cx_avg > door[0] else (-1 if cx_avg < door[0] else 0)
-            ty = 1 if cy_avg > door[1] else (-1 if cy_avg < door[1] else 0)
-            inner = (door[0] + tx, door[1] + ty)
+            doorways.append(Doorway(len(doorways), door,
+                                    _inner_step(mass, door), side))
 
-            doorways.append(Doorway(len(doorways), door, inner, side))
+    return doorways
+
+
+def _inner_step(mass: List[Tuple[int, int]], door: Tuple[int, int]) -> Tuple[int, int]:
+    """Interior threshold: one step from the door toward the mass centroid."""
+    cx_avg = sum(p[0] for p in mass) / len(mass)
+    cy_avg = sum(p[1] for p in mass) / len(mass)
+    tx = 1 if cx_avg > door[0] else (-1 if cx_avg < door[0] else 0)
+    ty = 1 if cy_avg > door[1] else (-1 if cy_avg < door[1] else 0)
+    return (door[0] + tx, door[1] + ty)
+
+
+def detect_tower_doorways(world, exclude_exts=(), next_bld_id: int = 0,
+                          max_lobbies: int = MAX_TOWER_LOBBIES) -> List[Doorway]:
+    """Adds enterable doorways on downtown towers taller than the lobby floor.
+
+    A wall mass qualifies when it contains a facade at least
+    TOWER_LOBBY_MIN_HEIGHT_M tall, is at least a 3x3 room, and its chosen
+    perimeter door provably reaches road floor via bounded BFS -- so sealed
+    podium moats never claim an unreachable door. Deterministic scan order;
+    already-used exterior cells are skipped.
+    """
+    from src.world.textures import get_texture
+
+    w = world.width
+    h = world.height
+    walls = world.walls
+    visited = [[False] * w for _ in range(h)]
+    doorways: List[Doorway] = []
+    bld_id = next_bld_id
+    excluded = set(exclude_exts)
+
+    for sy in range(1, h - 1):
+        if len(doorways) >= max_lobbies:
+            break
+        for sx in range(1, w - 1):
+            if len(doorways) >= max_lobbies:
+                break
+            if visited[sy][sx] or walls[sy][sx] == 0:
+                continue
+
+            mass = flood_wall_mass(walls, w, h, sx, sy, visited)
+
+            if len(mass) < 6:
+                continue
+            xs = [p[0] for p in mass]
+            ys = [p[1] for p in mass]
+            bx0, bx1 = min(xs), max(xs)
+            by0, by1 = min(ys), max(ys)
+            if bx1 - bx0 < 2 or by1 - by0 < 2:
+                continue
+            if not any(get_texture(walls[cy][cx]).height_mult >= TOWER_LOBBY_MIN_HEIGHT_M
+                       for cx, cy in mass):
+                continue
+
+            door, side = find_street_door(world, mass, bx0, by0, bx1, by1)
+            if not door or door in excluded:
+                continue
+            if not door_reaches_street(world, door, side):
+                continue
+
+            doorways.append(Doorway(bld_id, door, _inner_step(mass, door), side))
+            bld_id += 1
 
     return doorways
 
 
 def build_interior(world, doorway: Doorway) -> Tuple[InteriorSpace, InteriorView]:
-    """Builds (and wraps) the interior for one doorway's building."""
+    """Builds (and wraps) the interior for one doorway's building.
+
+    Masses carrying a >=25 m facade become LobbySpace halls; everything else
+    keeps the storefront room behavior."""
     walls = world.walls
     w = world.width
     h = world.height
     # Bounding box of the door's connected mass (recomputed cheaply via flood)
-    sx, sy = doorway.ext
-    stack = [(sx, sy)]
-    seen = {(sx, sy)}
-    mass = []
-    while stack:
-        cx, cy = stack.pop()
-        mass.append((cx, cy))
-        for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
-            if 0 <= nx < w and 0 <= ny < h and (nx, ny) not in seen and walls[ny][nx] != 0:
-                seen.add((nx, ny))
-                stack.append((nx, ny))
+    mass = flood_wall_mass(walls, w, h, doorway.ext[0], doorway.ext[1],
+                           [[False] * w for _ in range(h)])
 
     xs = [p[0] for p in mass]
     ys = [p[1] for p in mass]
     bx0, bx1 = min(xs), max(xs)
     by0, by1 = min(ys), max(ys)
 
-    space = InteriorSpace(
+    from src.world.textures import get_texture
+    is_tower = any(get_texture(walls[cy][cx]).height_mult >= TOWER_LOBBY_MIN_HEIGHT_M
+                   for cx, cy in mass)
+
+    space_cls = LobbySpace if is_tower else InteriorSpace
+    space = space_cls(
         bld_id=doorway.bld_id,
         bx0=bx0, by0=by0,
         bw=bx1 - bx0 + 1, bh=by1 - by0 + 1,

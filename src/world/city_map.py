@@ -112,9 +112,20 @@ class CityMap:
 
         # Enterable buildings: doorways + lazily-built interiors.
         # Imported lazily to avoid a circular module dependency
-        from src.world.interiors import WALL_TYPE_DOORWAY, detect_doorways
+        from src.world.interiors import (
+            WALL_TYPE_DOORWAY,
+            detect_doorways,
+            detect_tower_doorways,
+        )
 
         self.doorways: List[Doorway] = detect_doorways(self)
+        # M5 Cycle C: downtown-scale towers (>=25 m facades) become enterable
+        # lobby halls; street-reachability BFS keeps every door walkable.
+        self.doorways += detect_tower_doorways(
+            self,
+            exclude_exts={d.ext for d in self.doorways},
+            next_bld_id=len(self.doorways),
+        )
         self._doorway_by_ext: Dict[Tuple[int, int], Doorway] = {
             d.ext: d for d in self.doorways
         }

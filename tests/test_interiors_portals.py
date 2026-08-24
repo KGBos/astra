@@ -236,10 +236,34 @@ class TestSpaceTransitions(unittest.TestCase):
                 if cm.doorways:
                     g.city_map = cm
                     break
-        d = g.city_map.doorways[0]
+        d = cm.doorways[0]
         ex, ey = d.ext
-        g.camera.pos.x = ex + 0.5 + ENTER_RADIUS + 3.0
-        g.camera.pos.y = ey + 0.5
+        # Far point relative to EVERY door: with tower lobbies the doorway
+        # count grew, so the probe must clear ENTER_RADIUS city-wide
+        far_x = ex + 0.5 + ENTER_RADIUS + 3.0
+        far_y = ey + 0.5
+        nearest = min(math.hypot(far_x - (od.ext[0] + 0.5),
+                                 far_y - (od.ext[1] + 0.5))
+                      for od in cm.doorways)
+        if nearest <= ENTER_RADIUS:
+            # Dense door field: probe from a scanned open cell instead
+            spot = None
+            for y in range(2, cm.height - 2):
+                for x in range(2, cm.width - 2):
+                    if cm.is_solid(x, y) or cm.is_water(x, y):
+                        continue
+                    if all(math.hypot(x + 0.5 - (od.ext[0] + 0.5),
+                                      y + 0.5 - (od.ext[1] + 0.5)) > ENTER_RADIUS + 3.0
+                           for od in cm.doorways):
+                        spot = (x + 0.5, y + 0.5)
+                        break
+                if spot:
+                    break
+            self.assertIsNotNone(spot, "no cell clears every doorway")
+            g.camera.pos.x, g.camera.pos.y = spot
+        else:
+            g.camera.pos.x = far_x
+            g.camera.pos.y = far_y
         g._update_space()
         self.assertIsNone(g.interior_view)
 
