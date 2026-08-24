@@ -74,6 +74,8 @@ class RayHit(NamedTuple):
     wall_height: float
     ray_dir_x: float
     ray_dir_y: float
+    is_far: bool = False  # True when resolved by the coarse far-skyline tier
+    win_dist: float = 0.0  # >0 when seen THROUGH a live-window portal
 
 
 def clamp(val: float, min_val: float, max_val: float) -> float:

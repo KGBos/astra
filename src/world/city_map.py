@@ -107,6 +107,30 @@ class CityMap:
         for coord in self._map_data.traffic_light_coords:
             self.traffic_lights[coord] = TrafficLight(coord[0], coord[1])
 
+        # Enterable buildings: doorways + lazily-built interiors.
+        # Imported lazily to avoid a circular module dependency
+        from src.world.interiors import WALL_TYPE_DOORWAY, detect_doorways
+
+        self.doorways: List[Doorway] = detect_doorways(self)
+        self._doorway_by_ext: Dict[Tuple[int, int], Doorway] = {
+            d.ext: d for d in self.doorways
+        }
+        for d in self.doorways:
+            # Retexture the threshold so the door reads as an entry from outside
+            ex, ey = d.ext
+            self.walls[ey][ex] = WALL_TYPE_DOORWAY
+        self._interior_cache: Dict = {}
+
+    def doorway_at(self, ix: int, iy: int):
+        return self._doorway_by_ext.get((ix, iy))
+
+    def get_interior(self, doorway):
+        """Lazily builds and caches (space, view) for a doorway's building."""
+        from src.world.interiors import build_interior
+        if doorway.bld_id not in self._interior_cache:
+            self._interior_cache[doorway.bld_id] = build_interior(self, doorway)
+        return self._interior_cache[doorway.bld_id]
+
     @classmethod
     def from_seed(
         cls,
