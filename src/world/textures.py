@@ -1,6 +1,8 @@
 """
 ASCII Texture and Facade definitions for Astra 3D.
 Textures provide 2D character patterns and TrueColor RGB color palettes.
+Facade heights (height_mult) are METERS above grade, sourced from
+src/world/scale.py FACADE_HEIGHTS_M — do not hand-tune here.
 """
 
 from typing import Dict, Tuple, List
@@ -81,7 +83,7 @@ def build_skyscraper_glass() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("SKYSCRAPER_GLASS", w, h, chars, fg_colors, bg_colors, height_mult=5.0)
+    return AsciiTexture("SKYSCRAPER_GLASS", w, h, chars, fg_colors, bg_colors, height_mult=30.0)
 
 
 def build_skyscraper_neon() -> AsciiTexture:
@@ -115,7 +117,7 @@ def build_skyscraper_neon() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("SKYSCRAPER_NEON", w, h, chars, fg_colors, bg_colors, height_mult=7.0)
+    return AsciiTexture("SKYSCRAPER_NEON", w, h, chars, fg_colors, bg_colors, height_mult=60.0)
 
 
 def build_brick_brownstone() -> AsciiTexture:
@@ -155,7 +157,7 @@ def build_brick_brownstone() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("BRICK_BROWNSTONE", w, h, chars, fg_colors, bg_colors, height_mult=1.3)
+    return AsciiTexture("BRICK_BROWNSTONE", w, h, chars, fg_colors, bg_colors, height_mult=10.0)
 
 
 def build_storefront_ramen() -> AsciiTexture:
@@ -193,7 +195,7 @@ def build_storefront_ramen() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("STOREFRONT_RAMEN", w, h, chars, fg_colors, bg_colors, height_mult=1.1)
+    return AsciiTexture("STOREFRONT_RAMEN", w, h, chars, fg_colors, bg_colors, height_mult=4.2)
 
 
 def build_concrete_warehouse() -> AsciiTexture:
@@ -215,7 +217,7 @@ def build_concrete_warehouse() -> AsciiTexture:
             if chars[y][x] in ('/', '\\'):
                 fg_colors[y][x] = (255, 200, 0)  # Hazard stripes
                 bg_colors[y][x] = (40, 30, 0)
-    return AsciiTexture("CONCRETE_WAREHOUSE", w, h, chars, fg_colors, bg_colors, height_mult=1.0)
+    return AsciiTexture("CONCRETE_WAREHOUSE", w, h, chars, fg_colors, bg_colors, height_mult=6.0)
 
 
 def build_hotel_neon() -> AsciiTexture:
@@ -249,7 +251,7 @@ def build_hotel_neon() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("HOTEL_NEON", w, h, chars, fg_colors, bg_colors, height_mult=3.5)
+    return AsciiTexture("HOTEL_NEON", w, h, chars, fg_colors, bg_colors, height_mult=14.0)
 
 
 def build_arcology_monument() -> AsciiTexture:
@@ -287,7 +289,7 @@ def build_arcology_monument() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("ARCOLOGY_MONUMENT", w, h, chars, fg_colors, bg_colors, height_mult=8.0)
+    return AsciiTexture("ARCOLOGY_MONUMENT", w, h, chars, fg_colors, bg_colors, height_mult=90.0)
 
 
 def build_megastructure_matrix() -> AsciiTexture:
@@ -321,7 +323,7 @@ def build_megastructure_matrix() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("MEGASTRUCTURE_MATRIX", w, h, chars, fg_colors, bg_colors, height_mult=6.0)
+    return AsciiTexture("MEGASTRUCTURE_MATRIX", w, h, chars, fg_colors, bg_colors, height_mult=45.0)
 
 
 def build_industrial_silo() -> AsciiTexture:
@@ -356,7 +358,7 @@ def build_industrial_silo() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("INDUSTRIAL_SILO", w, h, chars, fg_colors, bg_colors, height_mult=1.5)
+    return AsciiTexture("INDUSTRIAL_SILO", w, h, chars, fg_colors, bg_colors, height_mult=12.0)
 
 
 def build_marina_dock() -> AsciiTexture:
@@ -391,7 +393,7 @@ def build_marina_dock() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("MARINA_DOCK", w, h, chars, fg_colors, bg_colors, height_mult=1.0)
+    return AsciiTexture("MARINA_DOCK", w, h, chars, fg_colors, bg_colors, height_mult=3.5)
 
 
 def build_botanical_pavilion() -> AsciiTexture:
@@ -429,7 +431,7 @@ def build_botanical_pavilion() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("BOTANICAL_PAVILION", w, h, chars, fg_colors, bg_colors, height_mult=1.6)
+    return AsciiTexture("BOTANICAL_PAVILION", w, h, chars, fg_colors, bg_colors, height_mult=6.0)
 
 
 def build_interior_wall() -> AsciiTexture:
@@ -467,7 +469,7 @@ def build_interior_wall() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("INTERIOR_WALL", w, h, chars, fg_colors, bg_colors, height_mult=1.0)
+    return AsciiTexture("INTERIOR_WALL", w, h, chars, fg_colors, bg_colors, height_mult=2.7)
 
 
 def build_doorway() -> AsciiTexture:
@@ -501,7 +503,7 @@ def build_doorway() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("DOORWAY", w, h, chars, fg_colors, bg_colors, height_mult=1.0)
+    return AsciiTexture("DOORWAY", w, h, chars, fg_colors, bg_colors, height_mult=3.6)
 
 
 def build_ramen_interior() -> AsciiTexture:
@@ -517,7 +519,7 @@ def build_ramen_interior() -> AsciiTexture:
         "========"
     ]
     fg, bg = _make_uniform_palette(8, 8, (255, 200, 100), (45, 25, 15))
-    return AsciiTexture("RAMEN_INTERIOR", 8, 8, chars, fg, bg, height_mult=1.0)
+    return AsciiTexture("RAMEN_INTERIOR", 8, 8, chars, fg, bg, height_mult=2.7)
 
 
 def build_arcade_interior() -> AsciiTexture:
@@ -546,7 +548,7 @@ def build_arcade_interior() -> AsciiTexture:
                 bg_row.append((30, 10, 30))
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
-    return AsciiTexture("ARCADE_INTERIOR", 8, 8, chars, fg_colors, bg_colors, height_mult=1.0)
+    return AsciiTexture("ARCADE_INTERIOR", 8, 8, chars, fg_colors, bg_colors, height_mult=2.7)
 
 
 def build_hotel_interior() -> AsciiTexture:
@@ -562,7 +564,7 @@ def build_hotel_interior() -> AsciiTexture:
         "\\======/"
     ]
     fg, bg = _make_uniform_palette(8, 8, (255, 230, 160), (35, 30, 25))
-    return AsciiTexture("HOTEL_INTERIOR", 8, 8, chars, fg, bg, height_mult=1.2)
+    return AsciiTexture("HOTEL_INTERIOR", 8, 8, chars, fg, bg, height_mult=2.7)
 
 
 def build_interior_textures() -> Dict[int, AsciiTexture]:

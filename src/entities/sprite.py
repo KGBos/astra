@@ -55,7 +55,8 @@ def make_streetlamp_sprite(x: float, y: float) -> Sprite:
         [(150, 150, 160) for _ in range(5)],
         [(100, 100, 110) for _ in range(5)]
     ]
-    return Sprite(x, y, "STREETLAMP", chars, fg, scale_x=0.6, scale_y=0.9, is_luminous=True)
+    from src.world.scale import LAMP_HEIGHT_M
+    return Sprite(x, y, "STREETLAMP", chars, fg, scale_x=0.6, scale_y=LAMP_HEIGHT_M, is_luminous=True)
 
 
 def make_tree_sprite(x: float, y: float) -> Sprite:
@@ -71,7 +72,8 @@ def make_tree_sprite(x: float, y: float) -> Sprite:
         [(35, 130, 50) for _ in range(7)],
         [(120, 80, 50) for _ in range(7)]
     ]
-    return Sprite(x, y, "TREE", chars, fg, scale_x=0.9, scale_y=0.9)
+    from src.world.scale import TREE_HEIGHT_M
+    return Sprite(x, y, "TREE", chars, fg, scale_x=0.9, scale_y=TREE_HEIGHT_M)
 
 
 def make_fire_hydrant_sprite(x: float, y: float) -> Sprite:
@@ -85,7 +87,8 @@ def make_fire_hydrant_sprite(x: float, y: float) -> Sprite:
         [(240, 40, 30) for _ in range(5)],
         [(200, 30, 20) for _ in range(5)]
     ]
-    return Sprite(x, y, "HYDRANT", chars, fg, scale_x=0.4, scale_y=0.4)
+    from src.world.scale import HYDRANT_HEIGHT_M
+    return Sprite(x, y, "HYDRANT", chars, fg, scale_x=0.4, scale_y=HYDRANT_HEIGHT_M)
 
 
 def make_park_bench_sprite(x: float, y: float) -> Sprite:
@@ -99,7 +102,8 @@ def make_park_bench_sprite(x: float, y: float) -> Sprite:
         [(140, 90, 50) for _ in range(8)],
         [(80, 80, 90) for _ in range(8)]
     ]
-    return Sprite(x, y, "BENCH", chars, fg, scale_x=0.7, scale_y=0.4)
+    from src.world.scale import BENCH_HEIGHT_M
+    return Sprite(x, y, "BENCH", chars, fg, scale_x=0.7, scale_y=BENCH_HEIGHT_M)
 
 
 def make_fountain_sprite(x: float, y: float) -> Sprite:

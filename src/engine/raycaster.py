@@ -295,8 +295,8 @@ class Raycaster:
                 wall_x -= math.floor(wall_x)
                 layers.append(make_hit(map_x, map_y, side, perp, wall_x, wall_type))
                 if horizon_y is not None and len(layers) == 1 and window_dist == 0.0:
-                    line_h = (self.height / perp) * wall_h
-                    covered_top = (horizon_y - line_h / 2.0) <= 0.0
+                    unit_px = (self.height / perp) * wall_h
+                    covered_top = (horizon_y - unit_px * (wall_h - camera.eye_height)) <= 0.0
                 if covered_top or len(layers) - frame_count >= self.MAX_LAYERS:
                     return layers
 
@@ -347,7 +347,7 @@ class Raycaster:
 
         t = max(forward_now, 0.0) + self.FAR_STRIDE
         stride = self.FAR_STRIDE
-        while t <= self.FAR_MAX_DIST:
+        while t <= self.FAR_MAX_DIST and len(layers) < self.MAX_LAYERS:
             px = camera.pos.x + ray_dir_x * t
             py = camera.pos.y + ray_dir_y * t
             if city_map.is_solid(px, py):
@@ -355,7 +355,10 @@ class Raycaster:
                 fy = int(py)
                 wall_type = city_map.get_wall_type(fx, fy)
                 wall_h = city_map.get_wall_height(wall_type)
+                # Shorter/equal far masses add nothing; keep scanning for a
+                # taller silhouette rising behind them (distant skyline layering)
                 if wall_h > max_height + 1e-6 or not layers:
+                    max_height = max(max_height, wall_h)
                     # Face hint from fractional position inside the sampled cell
                     frac_x = px - math.floor(px)
                     frac_y = py - math.floor(py)
@@ -365,7 +368,6 @@ class Raycaster:
                                          max(0.08, t * dir_dot), wall_x,
                                          wall_type, wall_h, ray_dir_x, ray_dir_y,
                                          is_far=True))
-                break
             t += stride
             stride *= 1.12  # distant silhouette needs less sampling precision
 
@@ -448,6 +450,14 @@ class Raycaster:
                 bg = _blend_color(bg, weather.fog_color, fog_factor)
 
             buffer.set_pixel(screen_x, y, char, fg, bg)
+
+    def _window_span(self, win_dist: float, camera: Camera, horizon_y: int) -> Tuple[int, int]:
+        """Glass opening rows on a window-cell face: sill 0.9 m, header 2.1 m."""
+        unit_w = self.height / win_dist
+        center_z = 1.5                                   # mid between sill/header
+        center_row = horizon_y - unit_w * (center_z - camera.eye_height)
+        half_px = unit_w * 0.6                           # (2.1 - 0.9) / 2
+        return int(center_row - half_px), int(center_row + half_px)
 
     def _draw_far_body(
         self,
@@ -764,7 +774,11 @@ class Raycaster:
 
         cam_dx = camera.pos.x - spr.x
         cam_dy = camera.pos.y - spr.y
-        front_share, front_left, see_front = spr.visible_faces(cam_dx, cam_dy)
+        bearing = math.atan2(cam_dy, cam_dx) - spr.facing_angle
+        abs_cos = abs(math.cos(bearing))
+        sin_signed = math.sin(bearing)
+        front_left = sin_signed >= 0.0
+        see_front = math.cos(bearing) >= 0.0 or spr.back_chars is None
 
         # Rear hemisphere shows the back face art when one exists
         if see_front:
@@ -773,19 +787,16 @@ class Raycaster:
             face_chars, face_fg = spr.back_chars, spr.back_fg
         face_w = len(face_chars[0])
 
-        face_w = len(face_chars[0])
-
         side_w = len(spr.side_chars[0])
-        front_w = len(spr.front_chars[0])  # legacy footprint anchor
 
-        # Physical footprint in world units: projected spans derive directly
-        # from each face's real-world size (1 tile ~= 1 m), so vehicles read
-        # life-size instead of scale_x-scaled miniatures
-        front_span = px_per_unit * spr.front_units * front_share
-        side_span = px_per_unit * spr.side_units * (1.0 - front_share)
+        # True orthographic box projection: each face's screen width is its
+        # real-world size times the |cos|/|sin| of the bearing — NO
+        # normalization, so a 4.5 m car stays elongated at every angle
+        front_span = px_per_unit * spr.front_units * abs_cos
+        side_span = px_per_unit * spr.side_units * abs(sin_signed)
         total_span = front_span + side_span
 
-        spr_h = abs(int(px_per_unit * spr.height_units))
+        spr_h = max(1, abs(int(px_per_unit * spr.height_units)))
 
         # Ground anchoring (same model as flat sprites)
         vert_offset = int((spr.vertical_offset * self.height) / transform_y)

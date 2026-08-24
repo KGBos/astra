@@ -20,8 +20,10 @@ class Camera:
         plane_len = math.tan(fov_rad / 2.0)
         self.plane = Vector2(0.0, plane_len)
 
-        # Eye height and pitch
-        self.eye_height = 0.5    # 0.5 = middle height in unit cube
+        # Eye height and pitch (meters; registry value, Minecraft convention)
+        from src.world.scale import PLAYER_EYE_HEIGHT_M, PLAYER_HEIGHT_M
+        self.eye_base = PLAYER_EYE_HEIGHT_M      # 1.62 m standing eye
+        self.eye_height = self.eye_base
         self.pitch = 0.0         # vertical look offset in pixels/characters [-15, 15]
         self.z_velocity = 0.0
         self.is_jumping = False
@@ -59,18 +61,18 @@ class Camera:
         self.pitch = clamp(self.pitch + delta_pitch, -max_pitch, max_pitch)
 
     def jump(self):
-        """Initiates a jump if on ground."""
-        if not self.is_jumping and self.eye_height <= 0.51:
+        """Initiates a jump if on ground (~0.45 m hop)."""
+        if not self.is_jumping and self.eye_height <= self.eye_base + 0.01:
             self.is_jumping = True
-            self.z_velocity = 2.8
+            self.z_velocity = 3.0
 
     def update_physics(self, dt: float):
-        """Updates jumping and gravity physics."""
+        """Updates jumping and gravity physics (metric)."""
         if self.is_jumping:
             self.eye_height += self.z_velocity * dt
-            self.z_velocity -= 9.8 * dt  # Gravity
-            if self.eye_height <= 0.5:
-                self.eye_height = 0.5
+            self.z_velocity -= 9.8 * dt  # Gravity, m/s^2
+            if self.eye_height <= self.eye_base:
+                self.eye_height = self.eye_base
                 self.z_velocity = 0.0
                 self.is_jumping = False
 

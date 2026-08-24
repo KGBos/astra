@@ -7,6 +7,7 @@ import random
 from enum import Enum
 from typing import List, Tuple
 from src.entities.sprite import Sprite, VolumetricSprite
+from src.entities.vehicle_dims import VEHICLE_DIMS
 from src.world.city_map import FloorType
 
 
@@ -155,8 +156,8 @@ class Vehicle:
             scale_x=0.75, scale_y=0.5,
             is_luminous=True,
             back_chars=back_chars, back_fg=back_fg,
-            # Life-size footprint: ~1.8 m wide/tall body, ~4.2 m bumper-to-bumper
-            front_units=1.8,
-            side_units=4.2,
-            height_units=1.4
+            # Life-size footprint from the registry (meters)
+            front_units=VEHICLE_DIMS[self.vtype.name]["width_m"],
+            side_units=VEHICLE_DIMS[self.vtype.name]["length_m"],
+            height_units=VEHICLE_DIMS[self.vtype.name]["height_m"]
         )

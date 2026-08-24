@@ -136,8 +136,7 @@ class TestPortalRendering(unittest.TestCase):
                   day_night=day_night, weather=None, buffer=buf_walled)
 
         win_dist = abs(12.0 - cam.pos.y)                # window plane at y=12
-        half = int((32 / win_dist) * rc.WINDOW_OPENING)
-        w_top, w_bot = int(16 - half), int(16 + half)
+        w_top, w_bot = rc._window_span(win_dist, cam, 16)
 
         differing_in_span = [
             y for y in range(max(0, w_top), min(31, w_bot) + 1)
@@ -170,10 +169,11 @@ class TestPortalRendering(unittest.TestCase):
                   day_night=day_night, weather=None, buffer=buf_walled)
 
         win_dist = cam.pos.y - 13.0                     # near face of cell (12, 12)
-        w_top = int(16 - (32 / win_dist) * rc.WINDOW_OPENING)
-        w_bot = int(16 + (32 / win_dist) * rc.WINDOW_OPENING)
+        w_top, w_bot = rc._window_span(win_dist, cam, 16)
+        w_top = max(0, w_top); w_bot = min(31, w_bot)
 
-        for y in (w_top - 1, w_top - 2, w_bot + 1, w_bot + 2):
+        frame_rows = [y for y in range(32) if y < w_top - 1 or y > w_bot + 1]
+        for y in (max(0, w_top - 2), max(0, w_top - 1), min(31, w_bot + 2), min(31, w_bot + 1)):
             self.assertEqual(
                 (buf_glass.pixels[y][40].char, buf_glass.pixels[y][40].fg,
                  buf_glass.pixels[y][40].bg),

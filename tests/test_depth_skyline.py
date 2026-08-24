@@ -17,9 +17,10 @@ from src.entities.sprite import Sprite
 from src.renderer.screen_buffer import ScreenBuffer
 
 
-ARCLOGY_TYPE = 7     # height_mult 3.5
-WAREHOUSE_TYPE = 5   # height_mult 1.0
-TOWER_TYPE = 2       # height_mult 3.2
+ARCLOGY_TYPE = 7     # 90 m (registry)
+STOREFRONT_TYPE = 4  # 4.2 m (1 commercial story)
+WAREHOUSE_TYPE = 5   # 6.0 m (~2 stories)
+TOWER_TYPE = 2       # 60 m (~20 stories)
 
 
 def _empty_walls(size):
@@ -74,44 +75,47 @@ class TestDepthLayerOverlap(unittest.TestCase):
         self.assertEqual(len([h for h in layers if not h.is_far and h.wall_type == WAREHOUSE_TYPE]), 1)
 
     def test_tall_layer_rises_above_short_roofline(self):
-        self.scene.short_building(9, 11, 12, 13)
-        self.scene.tower(8, 12, 17, 22)
+        # Distant pairing: at real-world scale nearby structures fill the
+        # screen; overlap is visible only across a street-length sight line
+        cam = _camera_at(x=10.5, y=2.5)
+        self.scene.short_building(9, 11, 30, 31)          # storefront 4.2 m
+        self.scene.tower(8, 12, 38, 40)                   # tower 60 m behind it
         scene_without_tower = _Scene()
-        scene_without_tower.short_building(9, 11, 12, 13)
+        scene_without_tower.short_building(9, 11, 30, 31)
 
         day_night = DayNightCycle(start_hour=12.0)
         buf_with = ScreenBuffer(80, 32)
         buf_without = ScreenBuffer(80, 32)
-        self.rc.render(camera=self.camera, city_map=self.scene.city_map,
+        self.rc.render(camera=cam, city_map=self.scene.city_map,
                        sprites=[], day_night=day_night, buffer=buf_with)
-        self.rc.render(camera=self.camera, city_map=scene_without_tower.city_map,
+        self.rc.render(camera=cam, city_map=scene_without_tower.city_map,
                        sprites=[], day_night=day_night, buffer=buf_without)
 
-        perp_near = 12.0 - self.camera.pos.y
-        line_h = int((32 / perp_near) * 1.0)
-        horizon = int(32 / 2.0)
-        roof_row = int(horizon - line_h / 2.0)
+        col = 40
+        perp_near = 30.0 - cam.pos.y
+        eye = cam.eye_height
+        roof_row = int(16 - (32 / perp_near) * (4.2 - eye))  # metric top row
 
         differing_above_roof = [
-            y for y in range(0, max(0, roof_row))
-            if buf_with.pixels[y][self.center_col].char != buf_without.pixels[y][self.center_col].char
+            y for y in range(0, max(0, min(roof_row, 32)))
+            if buf_with.pixels[y][col].char != buf_without.pixels[y][col].char
         ]
         self.assertGreater(len(differing_above_roof), 0,
-                           "no tower pixels above the short roofline")
+                           f"no tower pixels above the low roofline (roof_row={roof_row})")
 
     def test_zbuffer_tracks_nearest_layer(self):
-        self.scene.short_building(9, 11, 12, 13)
-        self.scene.tower(8, 12, 20, 24)
+        self.scene.short_building(9, 11, 14, 15)
+        self.scene.tower(8, 12, 20, 22)
         day_night = DayNightCycle(start_hour=12.0)
         buf = ScreenBuffer(80, 32)
         self.rc.render(camera=self.camera, city_map=self.scene.city_map,
                        sprites=[], day_night=day_night, buffer=buf)
-        expected = 12.0 - self.camera.pos.y
+        expected = 14.0 - self.camera.pos.y
         self.assertAlmostEqual(self.rc.z_buffer[self.center_col], expected, delta=0.01)
 
     def test_cast_ray_compat_returns_nearest(self):
-        self.scene.short_building(9, 11, 12, 13)
-        self.scene.tower(8, 12, 20, 24)
+        self.scene.short_building(9, 11, 14, 15)
+        self.scene.tower(8, 12, 20, 22)
         hit = self.rc._cast_ray(self.center_col, self.camera, self.scene.city_map)
         self.assertIsInstance(hit, RayHit)
         self.assertTrue(hit.hit)
@@ -173,9 +177,10 @@ class TestNightCitySkyline(unittest.TestCase):
 
     def test_tower_heights_loom_over_low_districts(self):
         from src.world.textures import get_texture
-        self.assertGreaterEqual(get_texture(TOWER_TYPE).height_mult, 6.5)      # neon tower
-        self.assertGreaterEqual(get_texture(ARCLOGY_TYPE).height_mult, 7.5)    # arcology
-        self.assertLess(get_texture(WAREHOUSE_TYPE).height_mult, 1.5)          # low docks
+        self.assertGreaterEqual(get_texture(TOWER_TYPE).height_mult, 60.0)     # neon tower: ~20 stories
+        self.assertGreaterEqual(get_texture(ARCLOGY_TYPE).height_mult, 90.0)   # arcology landmark
+        self.assertLess(get_texture(WAREHOUSE_TYPE).height_mult, 10.0)         # low-rise industrial
+        self.assertAlmostEqual(get_texture(4).height_mult, 4.2)                # 1-story storefront
 
     def test_downtown_blocks_favor_tall_types(self):
         """Across seeds, downtown blocks are mostly tower-class wall types."""
