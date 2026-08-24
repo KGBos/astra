@@ -341,9 +341,9 @@ class TestTrafficSpeeds(unittest.TestCase):
         self.assertAlmostEqual(COLLECTOR_CRUISE, 9.0)
         self.assertAlmostEqual(ALLEY_CRUISE, 5.0)
 
-    def test_cruise_lookup_prefers_containing_band(self):
+    def test_cruise_lookup_prefers_containing_band_160x160(self):
         """A coordinate inside a segment band uses that segment's class even
-        when another centre-line is marginally nearer."""
+        when another centre-line is marginally nearer (city-scale 160 map)."""
         cm = CityMap(width=160, height=160, seed=0)
         arterial = next(s for s in cm.road_segments if s.road_class == "ARTERIAL")
         lo = arterial.center - arterial.width // 2
@@ -351,7 +351,7 @@ class TestTrafficSpeeds(unittest.TestCase):
         speed = cruise_speed_for(cm, x, 80.5, (0, 1))
         self.assertEqual(speed, CRUISE_BY_CLASS["ARTERIAL"])
 
-    def test_cruise_lookup_prefers_containing_band(self):
+    def test_cruise_lookup_prefers_containing_band_160x160(self):
         """A coordinate inside a segment band uses that segment's class even
         when another centre-line is marginally nearer."""
         cm = CityMap(width=42, height=42, seed=5)
