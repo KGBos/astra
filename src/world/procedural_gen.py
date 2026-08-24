@@ -7,7 +7,7 @@ import math
 import random
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 from src.entities.sprite import (
     Sprite,
@@ -191,7 +191,7 @@ class ProceduralCityGenerator:
         pass
 
     @staticmethod
-    def normalize_seed(seed: Optional[int | str]) -> int:
+    def normalize_seed(seed: Optional[Union[int, str]]) -> int:
         if seed is None:
             return random.randint(100000, 999999)
         if isinstance(seed, str):
@@ -204,7 +204,7 @@ class ProceduralCityGenerator:
 
     def generate(
         self,
-        seed: Optional[int | str] = None,
+        seed: Optional[Union[int, str]] = None,
         width: int = 42,
         height: int = 42,
         preset: str = "DEFAULT"
