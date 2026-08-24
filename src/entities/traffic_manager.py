@@ -1,11 +1,13 @@
 """
-Traffic Manager and 3D World Entity Coordinator for Astra 3D.
+Traffic Manager, NPC Pedestrians, and 3D World Entity Coordinator for Astra 3D.
 """
 
+import math
 import random
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from src.entities.sprite import Sprite, make_streetlamp_sprite, make_tree_sprite, make_fire_hydrant_sprite
 from src.entities.car import Vehicle, VehicleType
+from src.entities.npc import NPC, build_default_npcs
 
 
 class TrafficManager:
@@ -13,6 +15,7 @@ class TrafficManager:
         self.city_map = city_map
         self.vehicles: List[Vehicle] = []
         self.static_props: List[Sprite] = []
+        self.npcs: List[NPC] = build_default_npcs()
 
         self._spawn_static_props()
         self._spawn_vehicles(vehicle_count)
@@ -59,10 +62,26 @@ class TrafficManager:
     def update(self, dt: float):
         for vehicle in self.vehicles:
             vehicle.update(dt, self.city_map, self.vehicles)
+        for npc in self.npcs:
+            npc.update(dt, self.city_map)
 
     def get_all_sprites_for_camera(self, cam_x: float, cam_y: float) -> List[Sprite]:
-        """Collects static props and dynamically oriented vehicle sprites."""
+        """Collects static props, pedestrians, and dynamically oriented vehicle sprites."""
         all_sprites: List[Sprite] = list(self.static_props)
+        for npc in self.npcs:
+            all_sprites.append(npc.get_sprite())
         for v in self.vehicles:
             all_sprites.append(v.get_sprite_for_camera(cam_x, cam_y))
         return all_sprites
+
+    def get_nearby_vehicle(self, cam_x: float, cam_y: float, max_dist: float = 2.4) -> Optional[Vehicle]:
+        for v in self.vehicles:
+            if math.hypot(v.x - cam_x, v.y - cam_y) <= max_dist:
+                return v
+        return None
+
+    def get_nearby_npc(self, cam_x: float, cam_y: float, max_dist: float = 2.2) -> Optional[NPC]:
+        for npc in self.npcs:
+            if math.hypot(npc.x - cam_x, npc.y - cam_y) <= max_dist:
+                return npc
+        return None

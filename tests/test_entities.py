@@ -16,15 +16,22 @@ class TestEntities(unittest.TestCase):
 
     def test_vehicle_spawn_and_movement(self):
         self.assertGreater(len(self.traffic.vehicles), 0)
-        
+
         # Test movement on isolated vehicle
         v = Vehicle(x=10.0, y=10.0, vtype=VehicleType.TAXI, heading_dir=(0, 1))
         initial_pos = (v.x, v.y)
         v.update(1.0, self.map, [])
         self.assertNotEqual(initial_pos, (v.x, v.y))
-        
+
         # Test full traffic manager update step
         self.traffic.update(0.1)
+
+        # At least one vehicle advances over a full second of simulation
+        initial_positions = [(veh.x, veh.y) for veh in self.traffic.vehicles]
+        self.traffic.update(1.0)
+        new_positions = [(veh.x, veh.y) for veh in self.traffic.vehicles]
+        moved = any(init != new for init, new in zip(initial_positions, new_positions))
+        self.assertTrue(moved)
 
     def test_directional_sprites(self):
         from src.entities.sprite import VolumetricSprite
