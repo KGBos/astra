@@ -393,7 +393,7 @@ class Raycaster:
         distance_shade = (1.0 / (1.0 + 0.08 * hit.perp_wall_dist + 0.005 * hit.perp_wall_dist * hit.perp_wall_dist))
         
         headlight_boost = 0.0
-        if getattr(camera, 'headlights_on', True):
+        if getattr(camera, 'headlights_on', False):
             cone_factor = max(0.0, 1.0 - abs(screen_x - self.width / 2.0) / (self.width * 0.45))
             if hit.perp_wall_dist < 18.0:
                 headlight_boost = cone_factor * (1.0 - hit.perp_wall_dist / 18.0) * 0.75

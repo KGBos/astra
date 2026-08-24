@@ -124,7 +124,9 @@ class SoundscapeManager:
 
     def __init__(self, enabled: bool = True):
         self.enabled = enabled
-        self.temp_dir = tempfile.mkdtemp(prefix="astra_audio_")
+        # Tempdir is created lazily on first real synthesis need so a
+        # mute-default session never touches the filesystem at construction
+        self.temp_dir: Optional[str] = None
         self.sound_cache: Dict[str, str] = {}
         self.is_muted = not enabled
         self._lock = threading.Lock()
@@ -133,6 +135,11 @@ class SoundscapeManager:
         # Pre-synthesize retro 8-bit sound effects
         if self.enabled:
             self._synthesize_sound_bank()
+
+    def _ensure_tempdir(self) -> str:
+        if self.temp_dir is None:
+            self.temp_dir = tempfile.mkdtemp(prefix="astra_audio_")
+        return self.temp_dir
 
     def play_beep(self):
         """Emits a short acoustic terminal bell pulse (UI confirmation)."""
@@ -158,7 +165,7 @@ class SoundscapeManager:
         self.radio.update(dt)
 
     def _generate_wav(self, filename: str, duration: float, sample_rate: int, wave_gen_fn) -> str:
-        filepath = os.path.join(self.temp_dir, filename)
+        filepath = os.path.join(self._ensure_tempdir(), filename)
         num_samples = int(duration * sample_rate)
         
         with wave.open(filepath, 'w') as wav_file:
@@ -249,6 +256,12 @@ class SoundscapeManager:
 
     def toggle_mute(self) -> bool:
         self.is_muted = not self.is_muted
+        if not self.is_muted and not self.sound_cache:
+            # First audible request without a synthesized bank: build it now
+            try:
+                self._synthesize_sound_bank()
+            except Exception:
+                pass
         return not self.is_muted
 
     def cleanup(self):
@@ -256,7 +269,9 @@ class SoundscapeManager:
             for f in self.sound_cache.values():
                 if os.path.exists(f):
                     os.remove(f)
-            if os.path.exists(self.temp_dir):
+            self.sound_cache.clear()
+            if self.temp_dir and os.path.exists(self.temp_dir):
                 os.rmdir(self.temp_dir)
+            self.temp_dir = None
         except Exception:
             pass

@@ -33,7 +33,8 @@ class Game:
         target_fps: int = 30,
         use_color: bool = True,
         use_background: bool = True,
-        demo_mode: bool = False
+        demo_mode: bool = False,
+        use_audio: bool = False
     ):
         self.target_fps = target_fps
         self.frame_time = 1.0 / target_fps
@@ -49,7 +50,8 @@ class Game:
         # Subsystems
         self.terminal = TerminalManager()
         self.keyboard = KeyboardController()
-        self.soundscape = SoundscapeManager()
+        # Mute-default per roadmap NEXT.4: opt in with --audio or the V key
+        self.soundscape = SoundscapeManager(enabled=use_audio)
 
         # World & Camera
         self.city_map = CityMap(width=42, height=42)
@@ -236,6 +238,9 @@ class Game:
 
         # NPC Dialogue interaction mode: number keys pick questions
         if self.active_dialogue:
+            # Drain buffered drag deltas so they don't jerk the camera
+            # the moment the conversation closes
+            self.keyboard.pop_mouse_delta()
             if self.keyboard.has_event(KeyAction.JUMP):
                 self.active_dialogue = None
                 return
@@ -272,6 +277,11 @@ class Game:
             station = self.soundscape.next_station()
             self.hud.set_notification(f"TUNED RADIO // {station.freq} {station.name}", 2.5)
             self.soundscape.play_beep()
+
+        # Master audio mute toggle (V for Volume)
+        if self.keyboard.has_event(KeyAction.TOGGLE_AUDIO):
+            audio_on = self.soundscape.toggle_mute()
+            self.hud.set_notification(f"AUDIO // {'ON' if audio_on else 'OFF'}", 2.0)
 
         # Headlight toggle (driving ambience; beam cone follows the camera)
         if self.keyboard.has_event(KeyAction.TOGGLE_LIGHTS):

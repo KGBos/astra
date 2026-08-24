@@ -1,7 +1,9 @@
 """
 First-Person Vehicle Cockpit Dashboard, Dynamic Steering Wheel & Instruments for Astra 3D.
 Author: Valerie Sterling ⚡ (3D Raycaster & Rasterization Specialist)
-Status: M3 WORK-IN-PROGRESS — module is implemented and unit-tested (tests/test_vehicle_audio.py) but not yet integrated into the main Game loop (src/game.py).
+Status: M2 INTEGRATION — implemented, unit-tested (tests/test_vehicle_audio.py),
+and live in the main Game loop: src/game.py constructs CockpitHUD and calls
+update()/render() every frame while the player is driving.
 """
 
 import math
@@ -112,4 +114,4 @@ class CockpitHUD:
             buffer.draw_string(right_x, dash_y0 + 1, f"RPM : [{rpm_bars:<10}] {rpm_val:4d}", (255, 120, 50), dash_bg_col)
         if dash_y0 + 2 < h:
             siren_col = (255, 60, 60) if vehicle_ctrl.siren_active else (150, 160, 180)
-            buffer.draw_string(right_x, dash_y0 + 2, f"{siren_status} │ [E] Exit Car", siren_col, dash_bg_col)
+            buffer.draw_string(right_x, dash_y0 + 2, f"{siren_status} │ [F] Exit", siren_col, dash_bg_col)

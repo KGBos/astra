@@ -36,8 +36,9 @@ class Camera:
         self.bob_timer = 0.0
         self.bob_amount = 0.0
 
-        # Vehicle headlights (beam cone boost in the raycaster)
-        self.headlights_on = True
+        # Vehicle headlights (beam cone boost in the raycaster).
+        # OFF by default; the vehicle controller turns them on while driving
+        self.headlights_on = False
 
     def set_direction(self, angle_rad: float):
         """Sets absolute looking angle in radians (0 = East, pi/2 = South, pi = West, 3pi/2 = North)."""

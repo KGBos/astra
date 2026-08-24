@@ -30,6 +30,7 @@ class KeyAction:
     INTERACT = "INTERACT"
     ENTER_EXIT_VEHICLE = "ENTER_EXIT_VEHICLE"
     TOGGLE_RADIO = "TOGGLE_RADIO"
+    TOGGLE_AUDIO = "TOGGLE_AUDIO"
     TOGGLE_LIGHTS = "TOGGLE_LIGHTS"
     TOGGLE_MAP = "TOGGLE_MAP"
     TOGGLE_TIME = "TOGGLE_TIME"
@@ -185,6 +186,8 @@ class KeyboardController:
                 self.pressed_events.append(KeyAction.ENTER_EXIT_VEHICLE)
             elif lower == 'g':
                 self.pressed_events.append(KeyAction.TOGGLE_RADIO)
+            elif lower == 'v':
+                self.pressed_events.append(KeyAction.TOGGLE_AUDIO)
             elif lower == 'l':
                 self.pressed_events.append(KeyAction.TOGGLE_LIGHTS)
             elif lower == 'i':

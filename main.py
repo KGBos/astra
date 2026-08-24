@@ -45,7 +45,8 @@ Controls:
   [Space]          Jump
   [F]              Enter / Exit nearby vehicle
   [G]              Tune Radio Station
-  [L]              Toggle Vehicle Headlights
+  [V]              Toggle Audio Mute (muted by default; --audio to start unmuted)
+  [L]              Toggle Vehicle Headlights (auto-on while driving)
   [N]              Procedurally Re-synthesize New City
   [U]              Cycle & Inspect City Landmarks (POI)
   [M]              Toggle Mini-Map Radar
@@ -62,6 +63,7 @@ Controls:
     parser.add_argument("--seed", type=str, default=None, help="Procedural world seed (integer or string)")
     parser.add_argument("--no-color", action="store_true", help="Disable TrueColor ANSI output (pure ASCII mode)")
     parser.add_argument("--no-fill", action="store_true", help="Colored glyphs on the default terminal background (no background block fills)")
+    parser.add_argument("--audio", action="store_true", help="Enable procedural audio SFX & radio (muted by default, toggle in-game with V)")
     parser.add_argument("--demo", action="store_true", help="Launch autonomous city tour mode")
     parser.add_argument("--benchmark", action="store_true", help="Run 3D rendering benchmark and exit")
 
@@ -77,7 +79,8 @@ Controls:
         target_fps=args.fps,
         use_color=not args.no_color,
         use_background=not args.no_fill,
-        demo_mode=args.demo
+        demo_mode=args.demo,
+        use_audio=args.audio
     )
     if args.seed:
         game.regenerate_city(args.seed)
@@ -87,6 +90,10 @@ Controls:
     except KeyboardInterrupt:
         pass
     finally:
+        try:
+            game.soundscape.cleanup()
+        except AttributeError:
+            pass
         game.terminal.restore_terminal()
         print("\033[0m\nThank you for exploring Astra 3D Metropolis!")
 

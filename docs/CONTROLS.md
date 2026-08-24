@@ -34,7 +34,7 @@
 | **Brake / Reverse** | `S` / `↓` | Apply brakes, then reverse gear |
 | **Steer Left / Right** | `A` / `D` | Turn front wheels (speed-sensitive, self-centering) |
 | **Turbo Nitro Boost** | `Shift + W` | Engage nitrous oxide injection with speed lines |
-| **Toggle Headlights** | `L` | Switch the high-beam lighting cone on/off |
+| **Toggle Headlights** | `L` | Switch the high-beam lighting cone on/off (auto-on while driving, off when walking) |
 | **Honk Car Horn** | `H` | Sound vehicle horn and broadcast alert |
 | **Cockpit Dashboard** | Automatic | Speedometer, gear indicator, tachometer, sirens while driving |
 
@@ -49,6 +49,7 @@
 | **Talk / Dialogue Choices** | `E` then `1`, `2`, `3` | Start branching conversations with named NPC characters |
 | **Leave Conversation** | `Space` / `Esc` | Exit the dialogue box |
 | **Tune Radio Station** | `G` | Cycle radio channels (Retrowave, Beats, Jazz, News) |
+| **Toggle Audio Mute** | `V` | Master mute/unmute (starts muted; launch with `--audio` to start unmuted) |
 | **Cycle Landmarks** | `U` | Inspect the next point of interest |
 | **Toggle GPS Radar** | `M` | Show/hide the top-right mini-map radar |
 | **Skip Time of Day** | `T` | Advance clock by 4 hours (Day/Sunset/Night) |
@@ -86,4 +87,7 @@ python3 main.py --no-color
 
 # Launch with colored glyphs on your terminal's own background (no block fills)
 python3 main.py --no-fill
+
+# Launch with procedural audio SFX & radio unmuted (default is muted; V toggles)
+python3 main.py --audio
 ```

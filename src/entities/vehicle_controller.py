@@ -91,7 +91,12 @@ class VehicleController:
         camera.pos.x = vehicle.x
         camera.pos.y = vehicle.y
         camera.eye_height = 0.42
+        # Cancel any mid-air jump state before locking into the cockpit
+        camera.is_jumping = False
+        camera.z_velocity = 0.0
         camera.set_direction(self.heading_angle)
+        # Headlights come on automatically while driving (off when walking)
+        camera.headlights_on = True
 
     def exit_vehicle(self, camera: Camera):
         if not self.is_driving or self.current_vehicle is None:
@@ -99,6 +104,8 @@ class VehicleController:
 
         # Restore normal pedestrian eye height
         camera.eye_height = 0.5
+        # Headlights switch off as soon as the driver steps out
+        camera.headlights_on = False
         # Place player slightly to the sidewalk side of the car
         perp_angle = self.heading_angle + math.pi / 2.0
         camera.pos.x = self.current_vehicle.x + math.cos(perp_angle) * 0.9
