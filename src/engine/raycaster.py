@@ -1,5 +1,5 @@
 """
-Core 3D Raycasting Engine, Z-Buffer, Floor/Sky Renderer, Volumetric Fog, Wet Surface Reflections, Multi-district floors & 3D Sprite Projector.
+Core 3D Raycasting Engine, Two-Tier Far-Skyline Draw Distance, Depth-Layer Stacking, Z-Buffer, Floor/Sky Renderer, Volumetric Fog, Wet Surface Reflections, Multi-district floors & 3D Sprite Projector.
 Author: Valerie Sterling ⚡ & Darius Thorne 📐
 """
 
@@ -163,6 +163,7 @@ class Raycaster:
         layers: List[RayHit] = []
         max_height = -1.0
         side = 0
+        marched = 0.0
 
         # A layer whose projected top reaches above the screen top hides every
         # farther candidate; used to bail out of all remaining scanning
@@ -200,9 +201,10 @@ class Raycaster:
                 layers.append(RayHit(True, map_x, map_y, side,
                                      max(0.08, perp), wall_x,
                                      wall_type, wall_h, ray_dir_x, ray_dir_y))
-                if horizon_y is not None and len(layers) == 1:
+                if horizon_y is not None:
                     line_h = (self.height / perp) * wall_h
-                    covered_top = (horizon_y - line_h / 2.0) <= 0.0
+                    if (horizon_y - line_h / 2.0) <= 0.0:
+                        covered_top = True
                 if covered_top or len(layers) >= self.MAX_LAYERS:
                     return layers
 
@@ -210,17 +212,22 @@ class Raycaster:
         if covered_top:
             return layers
 
-        forward_now = min(side_dist_x - delta_dist_x, side_dist_y - delta_dist_y)
         dir_dot = ray_dir_x * camera.dir.x + ray_dir_y * camera.dir.y
         if dir_dot <= 1e-6:
             return layers
 
-        t = max(forward_now, 0.0) + self.FAR_STRIDE
+        is_solid = city_map.is_solid
+        pos_x = camera.pos.x
+        pos_y = camera.pos.y
+        # Resume exactly past the detailed tier's reach; `marched` tracks the
+        # distance of the last DDA crossing (never stale, unlike raw
+        # side_dist arithmetic on an axis that was never marched)
+        t = max(marched, 0.0) + self.FAR_STRIDE
         stride = self.FAR_STRIDE
         while t <= self.FAR_MAX_DIST:
-            px = camera.pos.x + ray_dir_x * t
-            py = camera.pos.y + ray_dir_y * t
-            if city_map.is_solid(px, py):
+            px = pos_x + ray_dir_x * t
+            py = pos_y + ray_dir_y * t
+            if is_solid(px, py):
                 fx = int(px)
                 fy = int(py)
                 wall_type = city_map.get_wall_type(fx, fy)
