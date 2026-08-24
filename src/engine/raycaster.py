@@ -9,6 +9,7 @@ from src.engine.camera import Camera
 from src.engine.math3d import clamp, RayHit
 from src.world.city_map import CityMap, FloorType
 from src.world.textures import get_texture
+from src.world.interiors import WALL_TYPE_INTERIOR
 from src.world.day_night import DayNightCycle
 from src.world.weather import WeatherSystem
 from src.entities.sprite import Sprite, VolumetricSprite
@@ -88,7 +89,7 @@ class Raycaster:
             if layers and layers[0].hit:
                 self.z_buffer[x] = layers[0].perp_wall_dist
                 wall_layers = [h for h in layers if h.win_dist == 0.0]
-                portal_layers = [h for h in layers if h.win_dist > 0.0]
+                portal_layers = [h for h in layers if h.win_dist > 0.0 and h.hit]
 
                 # Solid geometry first, far to near (classic painter)
                 for hit in reversed(wall_layers):
@@ -122,6 +123,22 @@ class Raycaster:
                             buffer=buffer,
                             clip=(w_top, w_bot)
                         )
+                elif layers[-1].win_dist > 0.0 and not layers[-1].hit:
+                    # Window crossed with nothing solid beyond: open sky through glass
+                    win_dist = layers[-1].win_dist
+                    w_half = (self.height / win_dist) * self.WINDOW_OPENING
+                    self._draw_sky_span(
+                        screen_x=x,
+                        y0=int(horizon_y - w_half),
+                        y1=int(horizon_y + w_half),
+                        zenith_col=zenith_col,
+                        horizon_col=horizon_col,
+                        lightning_intensity=lightning_intensity,
+                        lightning_col=lightning_col,
+                        day_night=day_night,
+                        weather=weather,
+                        buffer=buffer
+                    )
             else:
                 self.z_buffer[x] = 100.0
                 if layers and not layers[0].hit and layers[0].win_dist > 0.0:
@@ -210,6 +227,7 @@ class Raycaster:
         side = 0
         indoors = getattr(city_map, 'in_interior', False)
         window_dist = 0.0   # perp distance of the portal plane, once crossed
+        frame_count = 0     # synthetic window-frame layers (exempt from MAX_LAYERS)
 
         # A layer whose projected top reaches above the screen top hides every
         # farther candidate; used to bail out of all remaining scanning
@@ -235,7 +253,24 @@ class Raycaster:
                 marched = side_dist_y - delta_dist_y
 
             if indoors and window_dist == 0.0 and getattr(city_map, 'is_window_cell')(map_x, map_y):
-                # Live portal plane: remember it, let the ray fly through
+                # Live portal plane: the glass cell's own interior face is
+                # stamped as a full-column frame layer (win_dist 0.0 so it
+                # paints before the clipped through-glass content), then the
+                # ray is allowed to fly through
+                frame_type = city_map.get_wall_type(map_x, map_y)
+                if frame_type == 0:
+                    frame_type = WALL_TYPE_INTERIOR
+                if side == 0:
+                    frame_x = camera.pos.y + marched * ray_dir_y
+                else:
+                    frame_x = camera.pos.x + marched * ray_dir_x
+                frame_x -= math.floor(frame_x)
+                layers.append(RayHit(True, map_x, map_y, side, max(0.08, marched),
+                                     frame_x, frame_type,
+                                     city_map.get_wall_height(frame_type),
+                                     ray_dir_x, ray_dir_y,
+                                     is_far=False, win_dist=0.0))
+                frame_count += 1
                 window_dist = marched
                 continue
 
@@ -261,7 +296,7 @@ class Raycaster:
                 if horizon_y is not None and len(layers) == 1 and window_dist == 0.0:
                     line_h = (self.height / perp) * wall_h
                     covered_top = (horizon_y - line_h / 2.0) <= 0.0
-                if covered_top or len(layers) >= self.MAX_LAYERS:
+                if covered_top or len(layers) - frame_count >= self.MAX_LAYERS:
                     return layers
 
         if window_dist > 0.0:
