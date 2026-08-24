@@ -1,5 +1,5 @@
 """
-3D Billboarding Sprite system for Astra 3D.
+3D Billboarding Sprite and Pseudo-Volumetric Prop system for Astra 3D.
 """
 
 import math
@@ -195,4 +195,97 @@ def make_bollard_sprite(x: float, y: float) -> Sprite:
         [(90, 90, 100) for _ in range(3)]
     ]
     return Sprite(x, y, "BOLLARD", chars, fg, scale_x=0.3, scale_y=0.4)
+
+
+class VolumetricSprite(Sprite):
+    """
+    Pseudo-volumetric street prop: a box with distinct FRONT and SIDE faces.
+
+    The renderer projects both faces with an angle-dependent width split
+    (front shrinks as the camera moves off-axis while the side face grows),
+    producing a convincing corner edge without true mesh geometry.
+    """
+
+    SIDE_SHADE = 0.78  # side plane reads darker than the lit front plane
+
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        name: str,
+        front_chars: List[str],
+        front_fg: List[List[Tuple[int, int, int]]],
+        side_chars: List[str],
+        side_fg: List[List[Tuple[int, int, int]]],
+        facing_angle: float = 0.0,
+        scale_x: float = 1.0,
+        scale_y: float = 1.0,
+        vertical_offset: float = 0.0,
+        is_luminous: bool = False
+    ):
+        super().__init__(x, y, name, front_chars, front_fg,
+                         scale_x=scale_x, scale_y=scale_y,
+                         vertical_offset=vertical_offset, is_luminous=is_luminous)
+        self.front_chars = front_chars
+        self.front_fg = front_fg
+        self.side_chars = side_chars
+        self.side_fg = side_fg
+        self.facing_angle = facing_angle
+
+    def visible_faces(self, cam_dx: float, cam_dy: float) -> Tuple[float, bool]:
+        """
+        Returns (front_share, front_on_left) for the projected extent.
+
+        front_share: fraction of the box width showing the FRONT face [0..1].
+        front_on_left: which side of the screen the front panel occupies.
+        """
+        bearing = math.atan2(cam_dy, cam_dx) - self.facing_angle
+        cos_b = abs(math.cos(bearing))
+        sin_b = abs(math.sin(bearing))
+        total = cos_b + sin_b
+        if total < 1e-6:
+            return (1.0, True)
+        return (cos_b / total, math.sin(bearing) >= 0.0)
+
+
+def make_vending_machine_sprite(x: float, y: float, facing_angle: float = 0.0) -> VolumetricSprite:
+    """Glowing drink machine: lit product window on the front, vents on the side."""
+    front_chars = [
+        "[===]",
+        "|o.o|",
+        "|o.o|",
+        "[___]"
+    ]
+    frame = (150, 160, 175)
+    glow = (90, 220, 255)
+    cola = (255, 90, 70)
+    lime = (120, 255, 120)
+    front_fg = [
+        [frame, glow, glow, glow, frame],
+        [frame, cola, glow, lime, frame],
+        [frame, lime, cola, glow, frame],
+        [frame, frame, frame, frame, frame]
+    ]
+    side_chars = [
+        "####",
+        "#==#",
+        "#==#",
+        "####"
+    ]
+    dark = (95, 100, 115)
+    vent = (60, 65, 80)
+    side_fg = [
+        [dark, dark, dark, dark],
+        [dark, vent, vent, dark],
+        [dark, vent, vent, dark],
+        [dark, dark, dark, dark]
+    ]
+    return VolumetricSprite(
+        x, y, "VENDING_MACHINE",
+        front_chars, front_fg,
+        side_chars, side_fg,
+        facing_angle=facing_angle,
+        scale_x=0.55, scale_y=0.55,
+        is_luminous=True
+    )
 
