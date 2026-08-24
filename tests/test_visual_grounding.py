@@ -39,7 +39,9 @@ class TestWallGrounding(unittest.TestCase):
 
         col = 40
         perp = 14.0 - cam.pos.y
-        base_row = int(16 + (32 / perp) * cam.eye_height)   # floor contact row
+        from src.world.scale import CELL_ASPECT
+        vproj = (80 / 2.0) / cam.plane.length() / CELL_ASPECT
+        base_row = int(16 + (vproj / perp) * cam.eye_height)  # floor contact row
         wall_glyphs = {'|', '#', '-', '=', '\\', '/'}
         below = [buf.pixels[y][col].char for y in range(base_row + 1, 32)]
         leak = [c for c in below if c in wall_glyphs]
@@ -78,7 +80,9 @@ class TestSpriteGrounding(unittest.TestCase):
                  if (with_car.pixels[y][x].char, with_car.pixels[y][x].fg) !=
                     (without_car.pixels[y][x].char, without_car.pixels[y][x].fg)]
         self.assertTrue(cells, "car produced no pixels")
-        contact_row = int(16 + (32 / 4.5) * cam.eye_height)
+        from src.world.scale import CELL_ASPECT
+        vproj = (80 / 2.0) / cam.plane.length() / CELL_ASPECT
+        contact_row = int(16 + (vproj / 4.5) * cam.eye_height)
         bottom = max(y for _, y in cells)
         self.assertLessEqual(bottom, contact_row,
                              f"car sinks below floor: bottom={bottom} contact={contact_row}")

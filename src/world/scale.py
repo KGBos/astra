@@ -20,6 +20,18 @@ from src.entities.vehicle_dims import VEHICLE_DIMS  # noqa: F401  (re-export)
 
 TILE_SIZE_M = 1.0
 
+# --- Projection ---
+# Terminal cells are roughly twice as tall as wide; without correcting for
+# this, vertical scale is implicitly stretched and proportions read wrong.
+CELL_ASPECT = 2.0             # cell height / cell width
+DEFAULT_FOV_DEG = 70.0
+
+# --- Human movement (metric; tuned so walking FEELS like walking) ---
+WALK_SPEED_MPS = 2.1          # brisk urban walk
+SPRINT_MULT = 1.8             # ~3.8 m/s sprint
+STRAFE_MULT = 0.8
+TURN_RATE_RPS = 2.4
+
 # --- Human ---
 PLAYER_EYE_HEIGHT_M = 1.62     # standing eye height (Minecraft convention)
 PLAYER_HEIGHT_M = 1.80

@@ -55,22 +55,49 @@ class TestLifeSizeProjection(unittest.TestCase):
                     (without.pixels[y][x].char, without.pixels[y][x].fg)]
         return cells
 
+    def _vproj(self, cam):
+        from src.world.scale import CELL_ASPECT
+        return (80 / 2.0) / cam.plane.length() / CELL_ASPECT
+
     def test_head_on_width_matches_meters(self):
         cells = self._car_pixels()
         xs = sorted(set(x for x, _ in cells))
         dist = 11.5 - 6.5
-        expected_w = scale.VEHICLE_DIMS["TAXI"]["width_m"] * (40 / dist)
-        self.assertAlmostEqual(len(xs), expected_w, delta=4,
+        cam = Camera(x=10.15, y=6.5)
+        expected_w = scale.VEHICLE_DIMS["TAXI"]["width_m"] * (self._vproj(cam) / dist)
+        self.assertAlmostEqual(len(xs), expected_w, delta=3,
                                msg=f"head-on width {len(xs)} px vs {expected_w:.1f} expected")
 
     def test_height_matches_meters(self):
         cells = self._car_pixels()
         ys = sorted(set(y for _, y in cells))
         dist = 11.5 - 6.5
-        px_per_unit = 40 / dist
-        expected_h = scale.VEHICLE_DIMS["TAXI"]["height_m"] * px_per_unit
-        self.assertAlmostEqual(len(ys), expected_h, delta=3,
+        cam = Camera(x=10.15, y=6.5)
+        expected_h = scale.VEHICLE_DIMS["TAXI"]["height_m"] * (self._vproj(cam) / dist)
+        self.assertAlmostEqual(len(ys), expected_h, delta=2,
                                msg=f"height {len(ys)} rows vs {expected_h:.1f} expected")
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class TestMetricMovement(unittest.TestCase):
+    def test_walk_speed_is_metric(self):
+        from src.engine.camera import Camera
+        cam = Camera(x=1.0, y=1.0)
+        self.assertEqual(cam.move_speed, scale.WALK_SPEED_MPS)
+        self.assertLessEqual(cam.move_speed, 3.0, "walking must feel like walking")
+
+    def test_pedestrians_are_human_scale(self):
+        from src.entities.pedestrian_manager import PedestrianManager
+        pm = PedestrianManager(CityMap(width=42, height=42, seed=1), pedestrian_count=3)
+        self.assertTrue(pm.pedestrians)
+        spr = pm.pedestrians[0].get_sprite_for_camera(0.0, 0.0)
+        self.assertGreaterEqual(spr.scale_y, scale.PEDESTRIAN_HEIGHT_M * 0.5,
+                                "pedestrians must be human-height, not knee-high")
+        self.assertLessEqual(spr.scale_y, scale.PEDESTRIAN_HEIGHT_M,
+                             "pedestrians must not be giants")
 
 
 if __name__ == "__main__":

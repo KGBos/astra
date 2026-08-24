@@ -65,6 +65,12 @@ class Raycaster:
         # Modulate ambient with lightning flash
         ambient = clamp(base_ambient * (1.0 + lightning_intensity * 2.8), 0.1, 2.0)
 
+        # Vertical projection: rows-per-meter at unit distance, corrected for
+        # terminal cell aspect (chars ~2x taller than wide). All wall/sprite/
+        # floor geometry derives from this single factor.
+        from src.world.scale import CELL_ASPECT
+        self._v_proj = (self.width / 2.0) / camera.plane.length() / CELL_ASPECT
+
         # Camera horizon: pitched center line. Eye height is NOT folded in
         # here — it scales the wall/floor projection instead (see slices)
         horizon_y = int(self.height / 2.0 + camera.pitch)
@@ -295,7 +301,7 @@ class Raycaster:
                 wall_x -= math.floor(wall_x)
                 layers.append(make_hit(map_x, map_y, side, perp, wall_x, wall_type))
                 if horizon_y is not None and len(layers) == 1 and window_dist == 0.0:
-                    unit_px = (self.height / perp) * wall_h
+                    unit_px = self._v_proj / perp
                     covered_top = (horizon_y - unit_px * (wall_h - camera.eye_height)) <= 0.0
                 if covered_top or len(layers) - frame_count >= self.MAX_LAYERS:
                     return layers
@@ -393,7 +399,7 @@ class Raycaster:
         # Centering on the horizon was only correct for 1-high walls — taller
         # buildings projected their lower floors underground ("basements").
         eye = camera.eye_height
-        unit = self.height / hit.perp_wall_dist
+        unit = self._v_proj / hit.perp_wall_dist
         draw_start = int(horizon_y - unit * (hit.wall_height - eye))
         draw_end = int(horizon_y + unit * eye)
 
@@ -435,8 +441,18 @@ class Raycaster:
             y0 = max(y0, clip[0])
             y1 = min(y1, clip[1])
 
+        # Story-quantized facade sampling: tall buildings repeat their floor
+        # pattern every STORY_HEIGHT_M so window bands stay human-scale and
+        # height becomes legible (a 60 m tower shows ~20 stacked floors)
+        from src.world.scale import STORY_HEIGHT_M
+        repeating = hit.wall_height >= 2.0 * STORY_HEIGHT_M
+
         for y in range(y0, y1 + 1):
-            tex_v = (y - draw_start) / float(max(1, draw_end - draw_start))
+            if repeating:
+                z_m = (draw_end - y) / max(1e-6, unit)
+                tex_v = (z_m % STORY_HEIGHT_M) / STORY_HEIGHT_M
+            else:
+                tex_v = (y - draw_start) / float(max(1, draw_end - draw_start))
             tex_u = hit.wall_x
             
             char, fg_raw, bg_raw = texture.sample(tex_u, tex_v)
@@ -453,7 +469,7 @@ class Raycaster:
 
     def _window_span(self, win_dist: float, camera: Camera, horizon_y: int) -> Tuple[int, int]:
         """Glass opening rows on a window-cell face: sill 0.9 m, header 2.1 m."""
-        unit_w = self.height / win_dist
+        unit_w = self._v_proj / win_dist
         center_z = 1.5                                   # mid between sill/header
         center_row = horizon_y - unit_w * (center_z - camera.eye_height)
         half_px = unit_w * 0.6                           # (2.1 - 0.9) / 2
@@ -568,7 +584,7 @@ class Raycaster:
             if dy <= 0.0:
                 continue
 
-            row_dist = (eye * self.height) / dy
+            row_dist = (eye * self._v_proj) / dy
             floor_shade = clamp((1.0 / (1.0 + 0.1 * row_dist + 0.008 * row_dist * row_dist)) * ambient, 0.1, 1.0)
 
             ray_dir_x0 = camera.dir.x - camera.plane.x
@@ -707,13 +723,14 @@ class Raycaster:
                 )
                 continue
 
-            spr_h = abs(int(self.height / transform_y * spr.scale_y))
-            spr_w = abs(int(self.height / transform_y * spr.scale_x))
+            px_per_unit = self._v_proj / transform_y
+            spr_h = abs(int(px_per_unit * spr.scale_y))
+            spr_w = abs(int(px_per_unit * spr.scale_x))
 
             # Ground anchoring: sprite BASE sits on the floor plane at this
             # distance (z=0), not centered on the horizon — props no longer hover
             vert_offset = int((spr.vertical_offset * self.height) / transform_y)
-            base_row = int(horizon_y + (self.height / transform_y) * camera.eye_height)
+            base_row = int(horizon_y + px_per_unit * camera.eye_height)
             draw_y1 = base_row - vert_offset
             draw_y0 = draw_y1 - spr_h + 1
 
@@ -770,7 +787,7 @@ class Raycaster:
         projected extent with an angle-dependent split, so the visible corner
         edge slides across the prop as the camera orbits it.
         """
-        px_per_unit = self.height / transform_y
+        px_per_unit = self._v_proj / transform_y
 
         cam_dx = camera.pos.x - spr.x
         cam_dy = camera.pos.y - spr.y

@@ -29,9 +29,11 @@ class Camera:
         self.is_jumping = False
 
         # Movement attributes
-        self.move_speed = 4.5    # units per second
-        self.sprint_mult = 1.8
-        self.rot_speed = 2.8     # radians per second
+        # Metric movement from the world-scale registry
+        from src.world.scale import WALK_SPEED_MPS, SPRINT_MULT, TURN_RATE_RPS
+        self.move_speed = WALK_SPEED_MPS      # m/s (1 tile = 1 m)
+        self.sprint_mult = SPRINT_MULT
+        self.rot_speed = TURN_RATE_RPS        # rad/s
         self.collision_radius = 0.25
 
         # Head bobbing
