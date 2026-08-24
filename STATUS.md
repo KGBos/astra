@@ -38,7 +38,7 @@
 - [x] **CI**: GitHub Actions (`ci.yml`) — compileall + unittest across Python 3.8/3.10/3.12 on push/PR
 - [x] **Obelisk sync**: `receive.denyCurrentBranch=updateInstead`; pushes auto-update its worktree
 - [x] **Release tags**: `v0.4` (pre-integration) and `v0.5` (city-life + M2 wave)
-- [x] **Branch hygiene**: merged `feat/*` branches pruned from obelisk
+- [x] **Branch hygiene**: seatless `procedural-city-worldgen` pruned; remaining `feat/*` refs on obelisk intentionally retained — they hold live agent worktrees (Darius/Valerie/M2 seat)
 
 ## 4. Milestone Ledger (updated from legacy STATUS)
 | Milestone | Focus | Status |
