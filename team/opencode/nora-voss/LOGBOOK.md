@@ -46,3 +46,11 @@ Ported four engine techniques from the ASCII City reference into the pure-Python
 - `game.run` switched to deltas; `flush_frame('')` skips the write syscall. Legacy `render_to_ansi` preserved as reference renderer for tests/benchmark.
 - Monochrome/no-fill modes respected in delta path.
 - **Results**: demo-scene output 21.1k → 7.3k bytes/frame (−65.5%, worst case; static scenes −100%); CPU neutral (0.280 vs 0.287 ms/frame); 123/123 tests green (+9 incl. MiniTerminal round-trip emulator proving grid-exact reconstruction).
+
+## Shift 5 — Visual correctness pass (Leon playtest feedback)
+Leon flagged: flat-looking cars, unnecessary head-bob, buildings' "basements" visible through the ground, general visual inconsistencies.
+- **Root cause found**: wall slices were centered on the horizon — correct only for 1-high walls. With tower heights boosted to 7-8x, half of every tall building projected below the ground line (the "basements").
+- **Fix**: full eye-height perspective model. Walls: top = horizon − (H/d)·(h−eye), base = horizon + (H/d)·eye. Floor recede distance now uses camera.eye_height instead of hardcoded 0.5. Horizon = pitch only (eye fudge factor removed).
+- **Sprites**: flat + volumetric paths ground-anchor to the same floor plane (exact contact row); fixed an inclusive/exclusive off-by-one that painted sprites one row into the ground.
+- **Head bob** off by default (`camera.head_bob` flag keeps it available).
+- 4 new grounding regression tests (basement leak scan, car contact-row window, top-rise, bob default). 142/142 green, ~285 FPS median.
