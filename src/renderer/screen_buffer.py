@@ -41,12 +41,25 @@ class ScreenBuffer:
         self._fg_cache = {}
         self._bg_cache = {}
 
+        # Presented-state mirror for dirty-region diffing: what the terminal
+        # is believed to display right now. None until first delta render.
+        self._p_char: Optional[List[List[str]]] = None
+        self._p_fg: Optional[List[List[Optional[Tuple[int, int, int]]]]] = None
+        self._p_bg: Optional[List[List[Optional[Tuple[int, int, int]]]]] = None
+        self._needs_clear = True
+
+    def invalidate(self):
+        """Forces the next delta render to repaint the entire screen."""
+        self._p_char = None
+        self._needs_clear = True
+
     def resize(self, width: int, height: int):
         self.width = width
         self.height = height
         self.pixels = [
             [Pixel(' ', None, None) for _ in range(width)] for _ in range(height)
         ]
+        self.invalidate()
 
     def clear(self, bg: Optional[Tuple[int, int, int]] = None):
         for row in self.pixels:
@@ -190,4 +203,110 @@ class ScreenBuffer:
                 append("\r\n")
 
         append("\033[0m")
+        return "".join(out)
+
+    def _ensure_presented(self):
+        """(Re)allocates the presented-state mirror with miss sentinels."""
+        w, h = self.width, self.height
+        self._p_char = [['\x00'] * w for _ in range(h)]
+        self._p_fg = [[None] * w for _ in range(h)]
+        self._p_bg = [[None] * w for _ in range(h)]
+
+    def render_frame_delta(self) -> str:
+        """
+        Builds an ANSI fragment that repaints ONLY cells differing from the
+        last presented frame. Returns '' when nothing changed (caller should
+        skip the flush entirely).
+
+        Emission strategy: runs of consecutive dirty cells are painted with a
+        single absolute cursor move up front, so the terminal's wrap state is
+        never relied upon and unchanged regions cost zero bytes.
+        """
+        if self._needs_clear or self._p_char is None:
+            self._ensure_presented()
+            prefix = "\033[2J\033[H"
+            self._needs_clear = False
+        else:
+            prefix = ""
+
+        p_char, p_fg, p_bg = self._p_char, self._p_fg, self._p_bg
+        paint_bg = self.use_background
+        use_color = self.use_color
+        fg_cache, bg_cache = self._fg_cache, self._bg_cache
+        cache_limit = self._CACHE_LIMIT
+
+        out: List[str] = []
+        append = out.append
+        if prefix:
+            append(prefix)
+
+        last_fg = None
+        last_bg = None
+        cursor_row = -1
+        cursor_col = -1
+        any_dirty = False
+
+        for y in range(self.height):
+            row_px = self.pixels[y]
+            row_pc, row_pf, row_pb = p_char[y], p_fg[y], p_bg[y]
+            x = 0
+            while x < self.width:
+                px = row_px[x]
+                ch = px.char
+                fg = px.fg if use_color else None
+                bg = px.bg if paint_bg else None
+
+                # Skip clean cell; cursor position goes stale across skips
+                if ch == row_pc[x] and fg == row_pf[x] and bg == row_pb[x]:
+                    x += 1
+                    continue
+
+                # Start of a dirty run: position once, then paint consecutively
+                if cursor_row != y or cursor_col != x:
+                    append(f"\033[{y + 1};{x + 1}H")
+                    cursor_row = y
+                    cursor_col = x
+
+                any_dirty = True
+                while x < self.width:
+                    px = row_px[x]
+                    ch = px.char
+                    fg = px.fg if use_color else None
+                    bg = px.bg if paint_bg else None
+
+                    if ch == row_pc[x] and fg == row_pf[x] and bg == row_pb[x]:
+                        break  # run ends at the next clean cell
+
+                    if use_color and fg != last_fg:
+                        if fg is None:
+                            append("\033[39m")
+                        else:
+                            esc = fg_cache.get(fg)
+                            if esc is None:
+                                esc = f"\033[38;2;{fg[0]};{fg[1]};{fg[2]}m"
+                                if len(fg_cache) < cache_limit:
+                                    fg_cache[fg] = esc
+                            append(esc)
+                        last_fg = fg
+                    if use_color and paint_bg and bg != last_bg:
+                        if bg is None:
+                            append("\033[49m")
+                        else:
+                            esc = bg_cache.get(bg)
+                            if esc is None:
+                                esc = f"\033[48;2;{bg[0]};{bg[1]};{bg[2]}m"
+                                if len(bg_cache) < cache_limit:
+                                    bg_cache[bg] = esc
+                            append(esc)
+                        last_bg = bg
+
+                    append(ch)
+                    row_pc[x] = ch
+                    row_pf[x] = fg
+                    row_pb[x] = bg
+                    cursor_col = x + 1
+                    x += 1
+
+        if not any_dirty and not prefix:
+            return ""
         return "".join(out)

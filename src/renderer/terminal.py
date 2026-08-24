@@ -116,6 +116,8 @@ class TerminalManager:
         self.resized = True
 
     def flush_frame(self, frame_str: str):
+        if not frame_str:
+            return  # dirty-region delta: nothing changed, skip the syscall
         try:
             sys.stdout.write(frame_str)
             sys.stdout.flush()

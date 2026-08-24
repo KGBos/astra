@@ -163,8 +163,8 @@ class Game:
                 # 4. Render Frame
                 self._render_frame()
 
-                # 5. Flush to Terminal
-                frame_str = self.buffer.render_to_ansi()
+                # 5. Flush to Terminal (dirty-region delta; '' = nothing changed)
+                frame_str = self.buffer.render_frame_delta()
                 self.terminal.flush_frame(frame_str)
 
                 # 6. FPS Calculation
