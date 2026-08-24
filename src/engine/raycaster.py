@@ -111,7 +111,11 @@ class Raycaster:
         )
 
     def _cast_ray(self, screen_x: int, camera: Camera, city_map: CityMap) -> RayHit:
-        """Nearest wall hit for a column (compatibility accessor over _cast_ray_layers)."""
+        """Nearest wall hit for a column (compatibility accessor over _cast_ray_layers).
+
+        Unlike the legacy single-tier cast, this may return a far-tier
+        silhouette hit beyond the legacy 45-step range.
+        """
         layers = self._cast_ray_layers(screen_x, camera, city_map)
         if layers:
             return layers[0]

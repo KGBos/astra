@@ -295,6 +295,9 @@ class TestFarTierHazards(unittest.TestCase):
     def _legacy_first_hit(self, screen_x, camera, city_map):
         """Reference single-tier DDA (pre-refactor behaviour, 45 steps).
 
+        Distance uses master's closed-form grid-line derivation, deliberately
+        independent of production's marched ``side_dist - delta_dist`` rewind,
+        so this parity oracle can actually detect a wrong distance.
         Returns ((side, perp, wall_type) | None, inside_detailed_tier) where
         inside_detailed_tier marks hits found within NEAR_STEPS crossings —
         the exact span where the refactored near tier must match bit-for-bit.
@@ -318,12 +321,16 @@ class TestFarTierHazards(unittest.TestCase):
             if sdx < sdy:
                 sdx += ddx
                 map_x += step_x
-                side, perp = 0, sdx - ddx
+                side = 0
             else:
                 sdy += ddy
                 map_y += step_y
-                side, perp = 1, sdy - ddy
+                side = 1
             if city_map.is_solid(map_x, map_y):
+                if side == 0:
+                    perp = (map_x - camera.pos.x + (1 - step_x) / 2.0) / rdx
+                else:
+                    perp = (map_y - camera.pos.y + (1 - step_y) / 2.0) / rdy
                 return (side, perp, city_map.get_wall_type(map_x, map_y)), \
                     step < self.rc.NEAR_STEPS
         return None, False
