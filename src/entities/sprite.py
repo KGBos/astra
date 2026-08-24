@@ -222,7 +222,9 @@ class VolumetricSprite(Sprite):
         scale_x: float = 1.0,
         scale_y: float = 1.0,
         vertical_offset: float = 0.0,
-        is_luminous: bool = False
+        is_luminous: bool = False,
+        back_chars: Optional[List[str]] = None,
+        back_fg: Optional[List[List[Tuple[int, int, int]]]] = None
     ):
         super().__init__(x, y, name, front_chars, front_fg,
                          scale_x=scale_x, scale_y=scale_y,
@@ -231,22 +233,29 @@ class VolumetricSprite(Sprite):
         self.front_fg = front_fg
         self.side_chars = side_chars
         self.side_fg = side_fg
+        self.back_chars = back_chars      # optional rear face (e.g. taillights)
+        self.back_fg = back_fg
         self.facing_angle = facing_angle
 
-    def visible_faces(self, cam_dx: float, cam_dy: float) -> Tuple[float, bool]:
+    def visible_faces(self, cam_dx: float, cam_dy: float) -> Tuple[float, bool, bool]:
         """
-        Returns (front_share, front_on_left) for the projected extent.
+        Returns (front_share, front_on_left, see_front) for the projected extent.
 
         front_share: fraction of the box width showing the FRONT face [0..1].
         front_on_left: which side of the screen the front panel occupies.
+        see_front: False when the camera is in the rear hemisphere AND a
+            distinct back face exists (e.g. taillights instead of headlights).
         """
         bearing = math.atan2(cam_dy, cam_dx) - self.facing_angle
-        cos_b = abs(math.cos(bearing))
-        sin_b = abs(math.sin(bearing))
-        total = cos_b + sin_b
+        cos_b = math.cos(bearing)
+        sin_b = math.sin(bearing)
+        see_front = cos_b >= 0.0 or self.back_chars is None
+        abs_cos = abs(cos_b)
+        abs_sin = abs(sin_b)
+        total = abs_cos + abs_sin
         if total < 1e-6:
-            return (1.0, True)
-        return (cos_b / total, math.sin(bearing) >= 0.0)
+            return (1.0, True, see_front)
+        return (abs_cos / total, sin_b >= 0.0, see_front)
 
 
 def make_vending_machine_sprite(x: float, y: float, facing_angle: float = 0.0) -> VolumetricSprite:

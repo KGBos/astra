@@ -27,19 +27,39 @@ class TestEntities(unittest.TestCase):
         self.traffic.update(0.1)
 
     def test_directional_sprites(self):
+        from src.entities.sprite import VolumetricSprite
+
         v = Vehicle(x=10.0, y=10.0, vtype=VehicleType.TAXI, heading_dir=(0, 1))  # moving South (+Y)
-        
-        # Camera behind vehicle at (10, 5) -> looking at rear
-        spr_rear = v.get_sprite_for_camera(cam_x=10.0, cam_y=5.0)
-        self.assertEqual(spr_rear.name, "CAR_REAR")
 
-        # Camera in front of vehicle at (10, 15) -> looking at front
-        spr_front = v.get_sprite_for_camera(cam_x=10.0, cam_y=15.0)
-        self.assertEqual(spr_front.name, "CAR_FRONT")
+        # Cars are pseudo-volumetric boxes: one sprite, orientation-driven faces
+        spr = v.get_sprite_for_camera(cam_x=10.0, cam_y=5.0)
+        self.assertIsInstance(spr, VolumetricSprite)
 
-        # Camera to side of vehicle at (15, 10) -> looking at side
-        spr_side = v.get_sprite_for_camera(cam_x=15.0, cam_y=10.0)
-        self.assertEqual(spr_side.name, "CAR_SIDE")
+        # Camera behind vehicle at (10, 5) -> rear hemisphere, red taillights
+        _, _, see_front = spr.visible_faces(10.0 - v.x, 5.0 - v.y)
+        self.assertFalse(see_front)
+        self.assertIn((255, 20, 20), spr.back_fg[2])
+
+        # Camera in front of vehicle at (10, 15) -> front face, headlight glow
+        _, _, see_front_ahead = v.get_sprite_for_camera(
+            cam_x=10.0, cam_y=15.0).visible_faces(10.0 - v.x, 15.0 - v.y)
+        self.assertTrue(see_front_ahead)
+
+        # Camera abeam at (15, 10) -> blended corner view (both faces visible)
+        share, _, _ = v.get_sprite_for_camera(
+            cam_x=15.0, cam_y=10.0).visible_faces(15.0 - v.x, 10.0 - v.y)
+        self.assertGreater(share, 0.2)
+        self.assertLess(share, 0.8)
+
+    def test_police_siren_alternates_on_both_faces(self):
+        v = Vehicle(x=10.0, y=10.0, vtype=VehicleType.POLICE, heading_dir=(0, 1))
+        v.siren_tick = 0.0
+        spr = v.get_sprite_for_camera(cam_x=10.0, cam_y=20.0)
+        self.assertEqual(spr.front_fg[0][3], (255, 30, 30))
+        self.assertEqual(spr.back_fg[0][3], (255, 30, 30))
+        v.siren_tick = 1.0  # odd tick flips the siren phase
+        spr2 = v.get_sprite_for_camera(cam_x=10.0, cam_y=20.0)
+        self.assertEqual(spr2.front_fg[0][3], (30, 100, 255))
 
     def test_static_props_created(self):
         self.assertGreater(len(self.traffic.static_props), 15)

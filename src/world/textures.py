@@ -81,7 +81,7 @@ def build_skyscraper_glass() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("SKYSCRAPER_GLASS", w, h, chars, fg_colors, bg_colors, height_mult=2.5)
+    return AsciiTexture("SKYSCRAPER_GLASS", w, h, chars, fg_colors, bg_colors, height_mult=5.0)
 
 
 def build_skyscraper_neon() -> AsciiTexture:
@@ -115,7 +115,7 @@ def build_skyscraper_neon() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("SKYSCRAPER_NEON", w, h, chars, fg_colors, bg_colors, height_mult=3.2)
+    return AsciiTexture("SKYSCRAPER_NEON", w, h, chars, fg_colors, bg_colors, height_mult=7.0)
 
 
 def build_brick_brownstone() -> AsciiTexture:
@@ -249,7 +249,7 @@ def build_hotel_neon() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("HOTEL_NEON", w, h, chars, fg_colors, bg_colors, height_mult=2.0)
+    return AsciiTexture("HOTEL_NEON", w, h, chars, fg_colors, bg_colors, height_mult=3.5)
 
 
 def build_arcology_monument() -> AsciiTexture:
@@ -287,7 +287,7 @@ def build_arcology_monument() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("ARCOLOGY_MONUMENT", w, h, chars, fg_colors, bg_colors, height_mult=3.5)
+    return AsciiTexture("ARCOLOGY_MONUMENT", w, h, chars, fg_colors, bg_colors, height_mult=8.0)
 
 
 def build_megastructure_matrix() -> AsciiTexture:
@@ -321,7 +321,7 @@ def build_megastructure_matrix() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("MEGASTRUCTURE_MATRIX", w, h, chars, fg_colors, bg_colors, height_mult=3.0)
+    return AsciiTexture("MEGASTRUCTURE_MATRIX", w, h, chars, fg_colors, bg_colors, height_mult=6.0)
 
 
 def build_industrial_silo() -> AsciiTexture:
