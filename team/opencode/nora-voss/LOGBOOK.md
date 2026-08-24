@@ -54,3 +54,8 @@ Leon flagged: flat-looking cars, unnecessary head-bob, buildings' "basements" vi
 - **Sprites**: flat + volumetric paths ground-anchor to the same floor plane (exact contact row); fixed an inclusive/exclusive off-by-one that painted sprites one row into the ground.
 - **Head bob** off by default (`camera.head_bob` flag keeps it available).
 - 4 new grounding regression tests (basement leak scan, car contact-row window, top-rise, bob default). 142/142 green, ~285 FPS median.
+
+## Shift 5 (cont.) — life-size vehicles
+- VolumetricSprite physical footprint params (front/side/height units, 1 tile ~= 1 m).
+- Cars now project as real sedans (~1.8 x 4.2 x 1.4 u): ~15x9 cells at 4.5 u vs physics-expected ~13x10; exact ground contact retained.
+- Vending machines sized physically (0.9 x 0.6 x 1.5). Renderer consumes units directly; corner_smooth (gate addition) untouched.
