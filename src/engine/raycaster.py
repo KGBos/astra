@@ -65,8 +65,9 @@ class Raycaster:
         # Modulate ambient with lightning flash
         ambient = clamp(base_ambient * (1.0 + lightning_intensity * 2.8), 0.1, 2.0)
 
-        # Camera horizon with pitch and eye height offset
-        horizon_y = int(self.height / 2.0 + camera.pitch + (camera.eye_height - 0.5) * 8.0 + camera.bob_amount * self.height)
+        # Camera horizon: pitched center line. Eye height is NOT folded in
+        # here — it scales the wall/floor projection instead (see slices)
+        horizon_y = int(self.height / 2.0 + camera.pitch)
 
         # 1. Render Sky (Ceiling) & Floor Background Slices
         self._render_sky_and_floor(
@@ -383,10 +384,16 @@ class Raycaster:
         clip: Optional[Tuple[int, int]] = None
     ):
         texture = get_texture(hit.wall_type)
-        line_height = int((self.height / hit.perp_wall_dist) * hit.wall_height)
-        
-        draw_start = int(horizon_y - line_height / 2.0)
-        draw_end = int(horizon_y + line_height / 2.0)
+
+        # Perspective-correct vertical extent with eye-height anchoring:
+        # the wall BASE always lands exactly on the floor plane at this
+        # distance (z=0), and the TOP rises wall_height units above the eye.
+        # Centering on the horizon was only correct for 1-high walls — taller
+        # buildings projected their lower floors underground ("basements").
+        eye = camera.eye_height
+        unit = self.height / hit.perp_wall_dist
+        draw_start = int(horizon_y - unit * (hit.wall_height - eye))
+        draw_end = int(horizon_y + unit * eye)
 
         # Distance attenuation and side shading, plus headlight beam boost
         side_mult = 0.82 if hit.side == 1 else 1.0
@@ -544,13 +551,14 @@ class Raycaster:
                 else:
                     buffer.set_pixel(x, y, char, (100, 100, 120), sky_col)
 
-        # Floor rows (below horizon)
+        # Floor rows (below horizon); ground plane recedes per eye height
+        eye = camera.eye_height
         for y in range(max(0, horizon_y), self.height):
             dy = float(y - horizon_y)
             if dy <= 0.0:
                 continue
 
-            row_dist = (0.5 * self.height) / dy
+            row_dist = (eye * self.height) / dy
             floor_shade = clamp((1.0 / (1.0 + 0.1 * row_dist + 0.008 * row_dist * row_dist)) * ambient, 0.1, 1.0)
 
             ray_dir_x0 = camera.dir.x - camera.plane.x
@@ -692,9 +700,12 @@ class Raycaster:
             spr_h = abs(int(self.height / transform_y * spr.scale_y))
             spr_w = abs(int(self.height / transform_y * spr.scale_x))
 
+            # Ground anchoring: sprite BASE sits on the floor plane at this
+            # distance (z=0), not centered on the horizon — props no longer hover
             vert_offset = int((spr.vertical_offset * self.height) / transform_y)
-            draw_y0 = int(horizon_y - spr_h / 2.0 - vert_offset)
-            draw_y1 = int(horizon_y + spr_h / 2.0 - vert_offset)
+            base_row = int(horizon_y + (self.height / transform_y) * camera.eye_height)
+            draw_y1 = base_row - vert_offset
+            draw_y0 = draw_y1 - spr_h + 1
 
             draw_x0 = int(spr_screen_x - spr_w / 2.0)
             draw_x1 = int(spr_screen_x + spr_w / 2.0)
@@ -773,8 +784,11 @@ class Raycaster:
         total_span = face_span + side_span
 
         spr_h = abs(int(px_per_unit * spr.scale_y * rows / float(max(1, spr.height))))
+
+        # Ground anchoring (same model as flat sprites)
         vert_offset = int((spr.vertical_offset * self.height) / transform_y)
-        draw_y0 = int(horizon_y - spr_h / 2.0 - vert_offset)
+        base_row = int(horizon_y + px_per_unit * camera.eye_height)
+        draw_y0 = base_row - vert_offset - spr_h + 1
 
         x0 = spr_screen_x - int(total_span / 2.0)
         x1 = x0 + int(total_span)
@@ -787,7 +801,7 @@ class Raycaster:
             fog_blend = clamp(1.0 - math.exp(-dist * weather.fog_density), 0.0, 0.9)
 
         y_start = max(0, draw_y0)
-        y_end = min(self.height - 1, draw_y0 + spr_h)
+        y_end = min(self.height - 1, draw_y0 + spr_h - 1)
 
         for stripe in range(max(0, x0), min(self.width - 1, x1) + 1):
             if transform_y >= self.z_buffer[stripe]:

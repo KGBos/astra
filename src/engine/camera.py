@@ -35,6 +35,7 @@ class Camera:
         # Head bobbing
         self.bob_timer = 0.0
         self.bob_amount = 0.0
+        self.head_bob = False    # cosmetic head-bob animation (default: off)
 
         # Vehicle headlights (beam cone boost in the raycaster).
         # OFF by default; the vehicle controller turns them on while driving
@@ -119,8 +120,8 @@ class Camera:
             self.pos.y = new_y
             moved = True
 
-        # Head bobbing
-        if is_moving and moved:
+        # Head bobbing (off by default — pure visual preference)
+        if self.head_bob and is_moving and moved:
             self.bob_timer += dt * 10.0
             self.bob_amount = math.sin(self.bob_timer) * 0.04
         else:
