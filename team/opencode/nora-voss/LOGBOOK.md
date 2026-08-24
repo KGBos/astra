@@ -29,3 +29,9 @@ Ported four engine techniques from the ASCII City reference into the pure-Python
 **Results**: 110/110 tests green (26 new across three suites: depth/skyline, volumetric props, interiors/portals); benchmark median ~260 FPS vs 245 pre-session baseline while rendering strictly more scene per frame. Visual smoke test confirmed live-window interior view (neon facades + signage visible through glass).
 
 **Next**: interior furniture/prop dressing; multi-floor interiors; portal cost budgeting at very wide terminals.
+
+## Shift 3 — Night City pass: volumetric vehicles + looming skyline
+- **Volumetric cars**: `VolumetricSprite` gained an optional BACK face; `visible_faces` now returns `see_front` so the rear hemisphere shows taillight art instead of headlight art. `Vehicle.get_sprite_for_camera` builds a single 3-face box (front headlights/windshield, rear taillights, side profile) with `facing_angle` = motion direction; police siren phase applied to both front/back top rows. Legacy discrete CAR_FRONT/SIDE/REAR billboards retired; tests rewritten to face-semantics.
+- **Night City skyline**: tower height_mults boosted (Neon 3.2→7.0, Glass 2.5→5.0, Arcology 3.5→8.0, Megastructure 3.0→6.0, Hotel 2.0→3.5) while docks/historic stay low for canyon contrast; downtown/financial/neon-district palettes now weighted toward tall neon masses.
+- **Live-sync hazard confirmed**: the integration pipeline snapshots the live tree mid-edit. This turn it regressed raycaster.py to pre-`d91d97f` (losing the reviewer's window-frame fix). Re-applied their exact patch via `git apply`. Anyone editing engine files: re-run the full suite immediately before handing off.
+- **Results**: 114/114 tests green (+4: car face semantics, police siren both faces, skyline height floor, downtown tower-share weighting); benchmark median 282.6 FPS vs 245 pre-session baseline (taller towers improve the covered-top early-out).

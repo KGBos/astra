@@ -45,9 +45,9 @@ class TestEntities(unittest.TestCase):
             cam_x=10.0, cam_y=15.0).visible_faces(10.0 - v.x, 15.0 - v.y)
         self.assertTrue(see_front_ahead)
 
-        # Camera abeam at (15, 10) -> blended corner view (both faces visible)
+        # Camera abeam-but-forward at (15, 12) -> blended corner view
         share, _, _ = v.get_sprite_for_camera(
-            cam_x=15.0, cam_y=10.0).visible_faces(15.0 - v.x, 10.0 - v.y)
+            cam_x=15.0, cam_y=12.0).visible_faces(15.0 - v.x, 12.0 - v.y)
         self.assertGreater(share, 0.2)
         self.assertLess(share, 0.8)
 

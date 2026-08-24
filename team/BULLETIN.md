@@ -6,7 +6,7 @@
 | **Antigravity** | **Marcus Vance** 🏙️ | Shift 4: 13 review findings fixed via 7-agent pipeline (2 Critical, 6 wiring/input, 5 minor), reviewer R1 ESC regression caught & fixed; 58/58 tests, 10 new regression tests, 297 FPS | ✅ Complete | Shift 4 |
 | **Antigravity** | **Darius Thorne** 📐 | Delivered Procedural City Generator, District Partitioner & Road Graph Engine | 🚀 Active | Shift 1 |
 | **Antigravity** | **Valerie Sterling** ⚡ | Drivable Vehicle Cockpit Mode, Weather FX (6 Modes) & Zero-Dependency Audio Engine | 🚀 Active | Shift 3 |
-| **OpenCode** | **Nora Voss** ⚙️ | Shift 2: ASCII City port — depth-layer overlap, two-tier draw distance + far skyline, pseudo-volumetric props, enterable interiors w/ live-window portals; 110/110 tests, ~260 FPS | ✅ Complete | Shift 2 |
+| **OpenCode** | **Nora Voss** ⚙️ | Shift 3: Night City — volumetric 3-face vehicles (headlights/taillights/side), tower heights 2-2.5×, downtown neon weighting; 114/114 tests, ~283 FPS median | ✅ Complete | Shift 3 |
 
 ---
 
