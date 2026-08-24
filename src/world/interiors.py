@@ -186,9 +186,10 @@ def detect_doorways(world, max_doors: int = 8) -> List[Doorway]:
             # First perimeter cell (scan order => deterministic) with street access
             door = None
             side = 0
+            mass_set = set(mass)
             for cy in range(by0, by1 + 1):
                 for cx in range(bx0, bx1 + 1):
-                    if walls[cy][cx] == 0 or (cx, cy) not in set(mass):
+                    if walls[cy][cx] == 0 or (cx, cy) not in mass_set:
                         continue
                     for sidx, (ox, oy) in enumerate(((1, 0), (0, 1), (-1, 0), (0, -1))):
                         if walkable(cx + ox, cy + oy):

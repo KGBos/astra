@@ -85,13 +85,40 @@ class Raycaster:
         # 2. Raycast Walls & Record Z-Buffer (multi-layer, far-to-near paint)
         for x in range(self.width):
             layers = self._cast_ray_layers(x, camera, city_map, horizon_y)
-            if layers and layers[0].hit:
-                self.z_buffer[x] = layers[0].perp_wall_dist
-                wall_layers = [h for h in layers if h.win_dist == 0.0]
-                portal_layers = [h for h in layers if h.win_dist > 0.0]
+            depth_hits = [h for h in layers if h.hit and not h.is_frame]
+            frame_layers = [h for h in layers if h.hit and h.is_frame]
+            if depth_hits:
+                self.z_buffer[x] = depth_hits[0].perp_wall_dist
+            else:
+                self.z_buffer[x] = 100.0
+            wall_layers = [h for h in depth_hits if h.win_dist == 0.0]
+            portal_layers = [h for h in depth_hits if h.win_dist > 0.0]
 
-                # Solid geometry first, far to near (classic painter)
-                for hit in reversed(wall_layers):
+            # Solid geometry first, far to near (classic painter)
+            for hit in reversed(wall_layers):
+                self._draw_wall_slice(
+                    screen_x=x,
+                    hit=hit,
+                    camera=camera,
+                    horizon_y=horizon_y,
+                    ambient=ambient,
+                    weather=weather,
+                    flashlight_on=flashlight_on,
+                    buffer=buffer
+                )
+
+            w_top, w_bot = 0, 0
+            if portal_layers or frame_layers:
+                win_dist = portal_layers[0].win_dist if portal_layers \
+                    else frame_layers[0].perp_wall_dist
+                w_half = (self.height / win_dist) * self.WINDOW_OPENING
+                w_top = int(horizon_y - w_half)
+                w_bot = int(horizon_y + w_half)
+
+            if portal_layers:
+                # Live-window portals: exterior world seen through the
+                # glass opening, painted far-to-near inside the span
+                for hit in reversed(portal_layers):
                     self._draw_wall_slice(
                         screen_x=x,
                         hit=hit,
@@ -100,46 +127,39 @@ class Raycaster:
                         ambient=ambient,
                         weather=weather,
                         flashlight_on=flashlight_on,
-                        buffer=buffer
+                        buffer=buffer,
+                        clip=(w_top, w_bot)
                     )
+            elif frame_layers:
+                # Window with nothing solid beyond: open sky through glass
+                self._draw_sky_span(
+                    screen_x=x,
+                    y0=w_top,
+                    y1=w_bot,
+                    zenith_col=zenith_col,
+                    horizon_col=horizon_col,
+                    lightning_intensity=lightning_intensity,
+                    lightning_col=lightning_col,
+                    day_night=day_night,
+                    weather=weather,
+                    buffer=buffer
+                )
 
-                if portal_layers:
-                    # Live-window portals: exterior world seen through the
-                    # glass opening, painted far-to-near inside the span
-                    win_dist = portal_layers[0].win_dist
-                    w_half = (self.height / win_dist) * self.WINDOW_OPENING
-                    w_top = int(horizon_y - w_half)
-                    w_bot = int(horizon_y + w_half)
-                    for hit in reversed(portal_layers):
-                        self._draw_wall_slice(
-                            screen_x=x,
-                            hit=hit,
-                            camera=camera,
-                            horizon_y=horizon_y,
-                            ambient=ambient,
-                            weather=weather,
-                            flashlight_on=flashlight_on,
-                            buffer=buffer,
-                            clip=(w_top, w_bot)
-                        )
-            else:
-                self.z_buffer[x] = 100.0
-                if layers and not layers[0].hit and layers[0].win_dist > 0.0:
-                    # Window with nothing solid beyond: open sky through glass
-                    win_dist = layers[0].win_dist
-                    w_half = (self.height / win_dist) * self.WINDOW_OPENING
-                    self._draw_sky_span(
-                        screen_x=x,
-                        y0=int(horizon_y - w_half),
-                        y1=int(horizon_y + w_half),
-                        zenith_col=zenith_col,
-                        horizon_col=horizon_col,
-                        lightning_intensity=lightning_intensity,
-                        lightning_col=lightning_col,
-                        day_night=day_night,
-                        weather=weather,
-                        buffer=buffer
-                    )
+            # Window frame: interior wall face ringing the glass, painted last
+            # as the nearest geometry, clipped to the complement of the opening
+            for hit in reversed(frame_layers):
+                self._draw_wall_slice(
+                    screen_x=x,
+                    hit=hit,
+                    camera=camera,
+                    horizon_y=horizon_y,
+                    ambient=ambient,
+                    weather=weather,
+                    flashlight_on=flashlight_on,
+                    buffer=buffer,
+                    clip=(w_top, w_bot),
+                    outside_clip=True
+                )
 
         # 3. Project & Draw 3D Billboarding Sprites (Vehicles, Streetlamps, Trees, Pedestrians)
         self._render_sprites(
@@ -210,6 +230,7 @@ class Raycaster:
         side = 0
         indoors = getattr(city_map, 'in_interior', False)
         window_dist = 0.0   # perp distance of the portal plane, once crossed
+        frame_hit: Optional[RayHit] = None
 
         # A layer whose projected top reaches above the screen top hides every
         # farther candidate; used to bail out of all remaining scanning
@@ -235,8 +256,23 @@ class Raycaster:
                 marched = side_dist_y - delta_dist_y
 
             if indoors and window_dist == 0.0 and getattr(city_map, 'is_window_cell')(map_x, map_y):
-                # Live portal plane: remember it, let the ray fly through
-                window_dist = marched
+                # Live portal plane: remember it, let the ray fly through.
+                # The window cell's own wall face is recorded as the frame
+                # layer so rows outside the glass opening render interior
+                # wall instead of leaking sky/floor.
+                window_dist = max(0.08, marched)
+                perp = window_dist
+                if side == 0:
+                    frame_x = camera.pos.y + perp * ray_dir_y
+                else:
+                    frame_x = camera.pos.x + perp * ray_dir_x
+                frame_x -= math.floor(frame_x)
+                frame_type = city_map.get_wall_type(map_x, map_y)
+                frame_hit = RayHit(True, map_x, map_y, side, perp, frame_x,
+                                   frame_type, city_map.get_wall_height(frame_type),
+                                   ray_dir_x, ray_dir_y,
+                                   is_far=False, win_dist=0.0, is_frame=True)
+                layers.insert(0, frame_hit)
                 continue
 
             if not city_map.is_solid(map_x, map_y):
@@ -285,13 +321,18 @@ class Raycaster:
                         break
                     continue
                 wall_type = city_map.get_wall_type(map_x, map_y)
+                wall_h = city_map.get_wall_height(wall_type)
+                recorded_beyond_glass = any(h.hit and not h.is_frame for h in layers)
+                if recorded_beyond_glass and wall_h <= max_height + 1e-6:
+                    continue
                 if side == 0:
                     wall_x = camera.pos.y + marched * ray_dir_y
                 else:
                     wall_x = camera.pos.x + marched * ray_dir_x
                 wall_x -= math.floor(wall_x)
+                max_height = max(max_height, wall_h)
                 layers.append(RayHit(True, map_x, map_y, side, max(0.08, marched),
-                                     wall_x, wall_type, city_map.get_wall_height(wall_type),
+                                     wall_x, wall_type, wall_h,
                                      ray_dir_x, ray_dir_y,
                                      is_far=False, win_dist=window_dist))
                 break
@@ -345,7 +386,8 @@ class Raycaster:
         weather: Optional[WeatherSystem],
         flashlight_on: bool,
         buffer: ScreenBuffer,
-        clip: Optional[Tuple[int, int]] = None
+        clip: Optional[Tuple[int, int]] = None,
+        outside_clip: bool = False
     ):
         texture = get_texture(hit.wall_type)
         line_height = int((self.height / hit.perp_wall_dist) * hit.wall_height)
@@ -379,26 +421,32 @@ class Raycaster:
         y0 = max(0, draw_start)
         y1 = min(self.height - 1, draw_end)
 
-        # Live-window portal: keep only the rows inside the glass opening
+        # Clip modes: keep only rows inside the glass opening span, keep only
+        # the complement rows outside it (window frame), or the full slice
         if clip is not None:
-            y0 = max(y0, clip[0])
-            y1 = min(y1, clip[1])
+            if outside_clip:
+                spans = [(y0, min(y1, clip[0] - 1)), (max(y0, clip[1] + 1), y1)]
+            else:
+                spans = [(max(y0, clip[0]), min(y1, clip[1]))]
+        else:
+            spans = [(y0, y1)]
 
-        for y in range(y0, y1 + 1):
-            tex_v = (y - draw_start) / float(max(1, draw_end - draw_start))
-            tex_u = hit.wall_x
-            
-            char, fg_raw, bg_raw = texture.sample(tex_u, tex_v)
+        for span_y0, span_y1 in spans:
+            for y in range(span_y0, span_y1 + 1):
+                tex_v = (y - draw_start) / float(max(1, draw_end - draw_start))
+                tex_u = hit.wall_x
 
-            fg = (int(fg_raw[0] * shade), int(fg_raw[1] * shade), int(fg_raw[2] * shade))
-            bg = (int(bg_raw[0] * shade), int(bg_raw[1] * shade), int(bg_raw[2] * shade))
+                char, fg_raw, bg_raw = texture.sample(tex_u, tex_v)
 
-            # Apply Volumetric Fog Color Blending
-            if fog_factor > 0.0 and weather:
-                fg = _blend_color(fg, weather.fog_color, fog_factor)
-                bg = _blend_color(bg, weather.fog_color, fog_factor)
+                fg = (int(fg_raw[0] * shade), int(fg_raw[1] * shade), int(fg_raw[2] * shade))
+                bg = (int(bg_raw[0] * shade), int(bg_raw[1] * shade), int(bg_raw[2] * shade))
 
-            buffer.set_pixel(screen_x, y, char, fg, bg)
+                # Apply Volumetric Fog Color Blending
+                if fog_factor > 0.0 and weather:
+                    fg = _blend_color(fg, weather.fog_color, fog_factor)
+                    bg = _blend_color(bg, weather.fog_color, fog_factor)
+
+                buffer.set_pixel(screen_x, y, char, fg, bg)
 
     def _draw_far_body(
         self,
