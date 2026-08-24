@@ -225,7 +225,10 @@ class VolumetricSprite(Sprite):
         is_luminous: bool = False,
         back_chars: Optional[List[str]] = None,
         back_fg: Optional[List[List[Tuple[int, int, int]]]] = None,
-        corner_smooth: bool = False
+        corner_smooth: bool = False,
+        front_units: Optional[float] = None,
+        side_units: Optional[float] = None,
+        height_units: Optional[float] = None
     ):
         super().__init__(x, y, name, front_chars, front_fg,
                          scale_x=scale_x, scale_y=scale_y,
@@ -238,6 +241,11 @@ class VolumetricSprite(Sprite):
         self.back_fg = back_fg
         self.facing_angle = facing_angle
         self.corner_smooth = corner_smooth
+        # Explicit physical footprint in world units (1 tile ~= 1 m); falls
+        # back to legacy scale_x/scale_y derivation when omitted
+        self.front_units = front_units if front_units is not None else scale_x
+        self.side_units = side_units if side_units is not None else scale_x
+        self.height_units = height_units if height_units is not None else scale_y
 
     def visible_faces(self, cam_dx: float, cam_dy: float) -> Tuple[float, bool, bool]:
         """
@@ -305,5 +313,8 @@ def make_vending_machine_sprite(x: float, y: float, facing_angle: float = 0.0) -
         side_chars, side_fg,
         facing_angle=facing_angle,
         scale_x=0.55, scale_y=0.55,
-        is_luminous=True
+        is_luminous=True,
+        front_units=0.9,
+        side_units=0.6,
+        height_units=1.5
     )

@@ -155,5 +155,8 @@ class Vehicle:
             scale_x=0.75, scale_y=0.5,
             is_luminous=True,
             back_chars=back_chars, back_fg=back_fg,
-            corner_smooth=True
+            # Life-size footprint: ~1.8 m wide/tall body, ~4.2 m bumper-to-bumper
+            front_units=1.8,
+            side_units=4.2,
+            height_units=1.4
         )

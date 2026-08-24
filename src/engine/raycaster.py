@@ -773,17 +773,19 @@ class Raycaster:
             face_chars, face_fg = spr.back_chars, spr.back_fg
         face_w = len(face_chars[0])
 
+        face_w = len(face_chars[0])
+
         side_w = len(spr.side_chars[0])
         front_w = len(spr.front_chars[0])  # legacy footprint anchor
-        rows = max(len(face_chars), len(spr.side_chars))
 
-        # Full-face view must match the legacy flat billboard footprint
-        cell_px = (px_per_unit * spr.scale_x) / float(front_w)
-        face_span = cell_px * face_w * front_share
-        side_span = cell_px * side_w * (1.0 - front_share)
-        total_span = face_span + side_span
+        # Physical footprint in world units: projected spans derive directly
+        # from each face's real-world size (1 tile ~= 1 m), so vehicles read
+        # life-size instead of scale_x-scaled miniatures
+        front_span = px_per_unit * spr.front_units * front_share
+        side_span = px_per_unit * spr.side_units * (1.0 - front_share)
+        total_span = front_span + side_span
 
-        spr_h = abs(int(px_per_unit * spr.scale_y * rows / float(max(1, spr.height))))
+        spr_h = abs(int(px_per_unit * spr.height_units))
 
         # Ground anchoring (same model as flat sprites)
         vert_offset = int((spr.vertical_offset * self.height) / transform_y)
@@ -807,17 +809,17 @@ class Raycaster:
             if transform_y >= self.z_buffer[stripe]:
                 continue
 
-            in_face = (stripe < x0 + face_span) if front_left else (stripe >= x0 + side_span)
+            in_face = (stripe < x0 + front_span) if front_left else (stripe >= x0 + side_span)
             if in_face:
                 art_chars, art_fg, art_w = face_chars, face_fg, face_w
                 face_offset = (stripe - x0) if front_left else (stripe - (x0 + side_span))
                 plane_shade = shade
             else:
                 art_chars, art_fg, art_w = spr.side_chars, spr.side_fg, side_w
-                face_offset = (stripe - (x0 + face_span)) if front_left else (stripe - x0)
+                face_offset = (stripe - (x0 + front_span)) if front_left else (stripe - x0)
                 plane_shade = shade * VolumetricSprite.SIDE_SHADE
 
-            span = max(1.0, face_span if in_face else side_span)
+            span = max(1.0, front_span if in_face else side_span)
             tex_x = max(0, min(int(face_offset / span * art_w), art_w - 1))
 
             for y in range(y_start, y_end + 1):
