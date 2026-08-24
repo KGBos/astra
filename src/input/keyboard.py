@@ -27,14 +27,21 @@ class KeyAction:
     LOOK_DOWN = "LOOK_DOWN"
     SPRINT = "SPRINT"
     JUMP = "JUMP"
+    INTERACT = "INTERACT"
+    ENTER_EXIT_VEHICLE = "ENTER_EXIT_VEHICLE"
+    TOGGLE_RADIO = "TOGGLE_RADIO"
+    TOGGLE_AUDIO = "TOGGLE_AUDIO"
+    TOGGLE_LIGHTS = "TOGGLE_LIGHTS"
     TOGGLE_MAP = "TOGGLE_MAP"
     TOGGLE_TIME = "TOGGLE_TIME"
     TOGGLE_WEATHER = "TOGGLE_WEATHER"
     REGENERATE_CITY = "REGENERATE_CITY"
     CYCLE_LANDMARKS = "CYCLE_LANDMARKS"
-    INTERACT = "INTERACT"
     HONK_HORN = "HONK_HORN"
     TOGGLE_FLASHLIGHT = "TOGGLE_FLASHLIGHT"
+    NUM_1 = "NUM_1"
+    NUM_2 = "NUM_2"
+    NUM_3 = "NUM_3"
     QUIT = "QUIT"
     PAUSE = "PAUSE"
     WHEEL_UP = "WHEEL_UP"
@@ -174,25 +181,37 @@ class KeyboardController:
             elif lower == 'q':
                 self.active_actions.add(KeyAction.TURN_LEFT)
             elif lower == 'e':
-                self.active_actions.add(KeyAction.TURN_RIGHT)
+                self.pressed_events.append(KeyAction.INTERACT)
+            elif lower == 'f':
+                self.pressed_events.append(KeyAction.ENTER_EXIT_VEHICLE)
+            elif lower == 'g':
+                self.pressed_events.append(KeyAction.TOGGLE_RADIO)
+            elif lower == 'v':
+                self.pressed_events.append(KeyAction.TOGGLE_AUDIO)
+            elif lower == 'l':
+                self.pressed_events.append(KeyAction.TOGGLE_LIGHTS)
             elif lower == 'i':
                 self.active_actions.add(KeyAction.LOOK_UP)
             elif lower == 'k':
                 self.active_actions.add(KeyAction.LOOK_DOWN)
             elif ch == ' ':
                 self.pressed_events.append(KeyAction.JUMP)
+            elif ch == '1':
+                self.pressed_events.append(KeyAction.NUM_1)
+            elif ch == '2':
+                self.pressed_events.append(KeyAction.NUM_2)
+            elif ch == '3':
+                self.pressed_events.append(KeyAction.NUM_3)
             elif lower == 'm':
                 self.pressed_events.append(KeyAction.TOGGLE_MAP)
             elif lower == 't':
                 self.pressed_events.append(KeyAction.TOGGLE_TIME)
             elif lower == 'r':
                 self.pressed_events.append(KeyAction.TOGGLE_WEATHER)
-            elif lower in ('g', 'n'):
+            elif lower == 'n':
                 self.pressed_events.append(KeyAction.REGENERATE_CITY)
-            elif lower == 'l':
+            elif lower == 'u':
                 self.pressed_events.append(KeyAction.CYCLE_LANDMARKS)
-            elif lower == 'f':
-                self.pressed_events.append(KeyAction.INTERACT)
             elif lower == 'b':
                 self.pressed_events.append(KeyAction.TOGGLE_FLASHLIGHT)
             elif lower == 'h':
@@ -202,7 +221,7 @@ class KeyboardController:
             elif lower in ('x', '\x03'):  # 'x' or Ctrl+C
                 self.pressed_events.append(KeyAction.QUIT)
 
-            # Check if uppercase for sprint (Shift key pressed)
+            # Check if uppercase for sprint / nitro (Shift key pressed)
             if ch in ('W', 'A', 'S', 'D'):
                 self.active_actions.add(KeyAction.SPRINT)
 

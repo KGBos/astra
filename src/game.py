@@ -1,5 +1,6 @@
 """
-Main Game Engine loop, state management, and autonomous demo mode for Astra 3D.
+Main Game Engine loop, state management, vehicle driving, NPC conversations,
+and autonomous demo mode for Astra 3D.
 """
 
 import math
@@ -15,8 +16,11 @@ from src.world.day_night import DayNightCycle
 from src.world.weather import WeatherSystem, WeatherType
 from src.entities.traffic_manager import TrafficManager
 from src.entities.pedestrian_manager import PedestrianManager
+from src.entities.vehicle_controller import VehicleController
+from src.audio.soundscape import SoundscapeManager
 from src.renderer.screen_buffer import ScreenBuffer
 from src.renderer.hud import HUD
+from src.renderer.cockpit_hud import CockpitHUD
 from src.renderer.terminal import TerminalManager
 from src.input.keyboard import KeyboardController, KeyAction
 
@@ -29,7 +33,8 @@ class Game:
         target_fps: int = 30,
         use_color: bool = True,
         use_background: bool = True,
-        demo_mode: bool = False
+        demo_mode: bool = False,
+        use_audio: bool = False
     ):
         self.target_fps = target_fps
         self.frame_time = 1.0 / target_fps
@@ -45,7 +50,9 @@ class Game:
         # Subsystems
         self.terminal = TerminalManager()
         self.keyboard = KeyboardController()
-        
+        # Mute-default per roadmap NEXT.4: opt in with --audio or the V key
+        self.soundscape = SoundscapeManager(enabled=use_audio)
+
         # World & Camera
         self.city_map = CityMap(width=42, height=42)
         # Spawn player in Cyber-Downtown near avenue
@@ -58,7 +65,14 @@ class Game:
         self.pedestrians = PedestrianManager(self.city_map, pedestrian_count=28)
         self.day_night = DayNightCycle(start_hour=22.5, time_speed=0.4)
         self.weather = WeatherSystem(weather=WeatherType.CLEAR)
-        
+
+        # Driving mode (single controller module for the whole game)
+        self.vehicle_ctrl = VehicleController()
+        self.cockpit_hud = CockpitHUD()
+        self._throttle = 0.0
+        self._steer_input = 0.0
+        self._nitro_request = False
+
         # Rendering
         self.screen_w = width
         self.screen_h = height
@@ -68,6 +82,10 @@ class Game:
 
         # Player space: None = street, else InteriorView while inside a building
         self.interior_view = None
+
+        # Interaction & dialogue state (NPC conversations)
+        self.current_prompt: Optional[str] = None
+        self.active_dialogue: Optional[dict] = None
 
         # Performance metrics
         self.fps = float(target_fps)
@@ -80,6 +98,9 @@ class Game:
         if seed is None:
             seed = random.randint(100000, 999999)
         self.interior_view = None
+        self.active_dialogue = None
+        if self.vehicle_ctrl.is_driving:
+            self.vehicle_ctrl.exit_vehicle(self.camera)
         self.city_map = CityMap(width=self.city_map.width, height=self.city_map.height, seed=seed)
         self.traffic = TrafficManager(self.city_map, vehicle_count=self.vehicle_count)
         self.pedestrians = PedestrianManager(self.city_map, pedestrian_count=28)
@@ -107,7 +128,9 @@ class Game:
                 tx, ty = cam.pos.x + ndx * step, cam.pos.y + ndy * step
                 if not view.is_solid(tx, ty):
                     cam.pos.x, cam.pos.y = tx, ty
-                self.hud.set_notification("ENTERED BUILDING // WINDOWS ARE LIVE")
+                theme = view.space.theme
+                self.hud.set_notification(f"ENTERED {theme.icon} {theme.name} // WINDOWS ARE LIVE")
+                self.soundscape.play("chime")
         else:
             space = self.interior_view.space
             wx, wy = space.inner_door_world
@@ -118,6 +141,7 @@ class Game:
                 cam.pos.x = doorway.ext[0] + 0.5 + ox * 0.9
                 cam.pos.y = doorway.ext[1] + 0.5 + oy * 0.9
                 self.hud.set_notification("BACK ON THE STREET")
+                self.soundscape.play("chime")
 
     def _nearest_doorway(self):
         """(doorway, center_distance) of the closest entrance, or (None, inf)."""
@@ -132,9 +156,8 @@ class Game:
     def run(self, max_frames: Optional[int] = None):
         """Starts the main game loop."""
         self.running = True
-        
+
         with self.terminal:
-            # Detect actual terminal size if running interactively
             tw, th = self.terminal.get_size()
             self._resize_viewport(tw, th)
 
@@ -198,7 +221,6 @@ class Game:
     def _process_input(self, dt: float):
         if self.demo_mode:
             self._update_demo_camera(dt)
-            # Still poll keyboard to check for exit
             self.keyboard.poll_input()
             if self.keyboard.has_event(KeyAction.QUIT):
                 self.running = False
@@ -206,28 +228,115 @@ class Game:
 
         self.keyboard.poll_input()
 
-        # Exit
+        # Exit (Escape backs out of a conversation first)
         if self.keyboard.has_event(KeyAction.QUIT):
-            self.running = False
+            if self.active_dialogue:
+                self.active_dialogue = None
+            else:
+                self.running = False
             return
 
-        # Movement
-        is_sprint = self.keyboard.is_action_active(KeyAction.SPRINT)
-        if self.keyboard.is_action_active(KeyAction.MOVE_FORWARD):
-            self.camera.move_forward(dt, is_sprint, self._active_map())
-        elif self.keyboard.is_action_active(KeyAction.MOVE_BACKWARD):
-            self.camera.move_backward(dt, is_sprint, self._active_map())
+        # NPC Dialogue interaction mode: number keys pick questions
+        if self.active_dialogue:
+            # Drain buffered drag deltas so they don't jerk the camera
+            # the moment the conversation closes
+            self.keyboard.pop_mouse_delta()
+            if self.keyboard.has_event(KeyAction.JUMP):
+                self.active_dialogue = None
+                return
+            options = self.active_dialogue.get("options", [])
+            choice = None
+            if self.keyboard.has_event(KeyAction.NUM_1) and len(options) >= 1:
+                choice = options[0]
+            elif self.keyboard.has_event(KeyAction.NUM_2) and len(options) >= 2:
+                choice = options[1]
+            elif self.keyboard.has_event(KeyAction.NUM_3) and len(options) >= 3:
+                choice = options[2]
 
-        if self.keyboard.is_action_active(KeyAction.STRAFE_LEFT):
-            self.camera.strafe_left(dt, self._active_map())
-        elif self.keyboard.is_action_active(KeyAction.STRAFE_RIGHT):
-            self.camera.strafe_right(dt, self._active_map())
+            if choice:
+                self.active_dialogue["response"] = choice.response
+                self.soundscape.play_beep()
+            return
 
-        # Turning
-        if self.keyboard.is_action_active(KeyAction.TURN_LEFT):
-            self.camera.rotate(-self.camera.rot_speed * dt)
-        elif self.keyboard.is_action_active(KeyAction.TURN_RIGHT):
-            self.camera.rotate(self.camera.rot_speed * dt)
+        # Vehicle enter / exit
+        if self.keyboard.has_event(KeyAction.ENTER_EXIT_VEHICLE):
+            if self.vehicle_ctrl.is_driving:
+                self.vehicle_ctrl.exit_vehicle(self.camera)
+                self.hud.set_notification("EXITED VEHICLE // WALKING MODE", 2.0)
+                self.soundscape.play("chime")
+            else:
+                mounted = self.vehicle_ctrl.try_enter_nearest_vehicle(
+                    self.camera, self.traffic.vehicles)
+                if mounted:
+                    self.hud.set_notification(
+                        f"DRIVING [{mounted.vtype.value}] // [W] ACCEL [A/D] STEER [SHIFT] NITRO", 3.0)
+                    self.soundscape.play("rev")
+
+        # Radio tuning
+        if self.keyboard.has_event(KeyAction.TOGGLE_RADIO):
+            station = self.soundscape.next_station()
+            self.hud.set_notification(f"TUNED RADIO // {station.freq} {station.name}", 2.5)
+            self.soundscape.play_beep()
+
+        # Master audio mute toggle (V for Volume)
+        if self.keyboard.has_event(KeyAction.TOGGLE_AUDIO):
+            audio_on = self.soundscape.toggle_mute()
+            self.hud.set_notification(f"AUDIO // {'ON' if audio_on else 'OFF'}", 2.0)
+
+        # Headlight toggle (driving ambience; beam cone follows the camera)
+        if self.keyboard.has_event(KeyAction.TOGGLE_LIGHTS):
+            self.camera.headlights_on = not self.camera.headlights_on
+            self.hud.set_notification(f"LIGHTS: {'HIGH BEAMS ON' if self.camera.headlights_on else 'OFF'}", 2.0)
+
+        # Interaction: NPC conversation, else ambient pedestrian quote
+        if self.keyboard.has_event(KeyAction.INTERACT) and not self.vehicle_ctrl.is_driving:
+            nearby_npc = self.traffic.get_nearby_npc(self.camera.pos.x, self.camera.pos.y)
+            if nearby_npc:
+                self.active_dialogue = {
+                    "name": nearby_npc.name,
+                    "title": nearby_npc.title,
+                    "response": nearby_npc.dialogue[0].response if nearby_npc.dialogue else "Hello traveler!",
+                    "options": nearby_npc.dialogue
+                }
+                self.soundscape.play_beep()
+            else:
+                talk_res = self.pedestrians.interact_with_focused(self.camera.pos.x, self.camera.pos.y, self.camera.dir.x, self.camera.dir.y)
+                if talk_res:
+                    archetype, quote = talk_res
+                    arch_name = archetype.replace('_', ' ').title()
+                    self.hud.set_notification(f"[{arch_name}]: \"{quote}\"", duration=4.5)
+
+        # Movement (walking only; driving input is collected below)
+        self._throttle = 0.0
+        self._steer_input = 0.0
+        self._nitro_request = False
+        if self.vehicle_ctrl.is_driving:
+            if self.keyboard.is_action_active(KeyAction.MOVE_FORWARD):
+                self._throttle = 1.0
+                self._nitro_request = self.keyboard.is_action_active(KeyAction.SPRINT)
+            elif self.keyboard.is_action_active(KeyAction.MOVE_BACKWARD):
+                self._throttle = -1.0
+            if self.keyboard.is_action_active(KeyAction.STRAFE_LEFT):
+                self._steer_input = -1.0
+            elif self.keyboard.is_action_active(KeyAction.STRAFE_RIGHT):
+                self._steer_input = 1.0
+        else:
+            is_sprint = self.keyboard.is_action_active(KeyAction.SPRINT)
+            if self.keyboard.is_action_active(KeyAction.MOVE_FORWARD):
+                self.camera.move_forward(dt, is_sprint, self._active_map())
+            elif self.keyboard.is_action_active(KeyAction.MOVE_BACKWARD):
+                self.camera.move_backward(dt, is_sprint, self._active_map())
+
+            if self.keyboard.is_action_active(KeyAction.STRAFE_LEFT):
+                self.camera.strafe_left(dt, self._active_map())
+            elif self.keyboard.is_action_active(KeyAction.STRAFE_RIGHT):
+                self.camera.strafe_right(dt, self._active_map())
+
+            # Turning
+            if self.keyboard.is_action_active(KeyAction.TURN_LEFT):
+                self.camera.rotate(-self.camera.rot_speed * dt)
+            elif self.keyboard.is_action_active(KeyAction.TURN_RIGHT):
+                self.camera.rotate(self.camera.rot_speed * dt)
 
         # Mouse look: drag deltas rotate instantly, wheel nudges pitch
         mdx, mdy = self.keyboard.pop_mouse_delta()
@@ -241,14 +350,16 @@ class Game:
             self.camera.pitch_look(-2.0)
 
         # Pitch
-        if self.keyboard.is_action_active(KeyAction.LOOK_UP):
-            self.camera.pitch_look(12.0 * dt)
-        elif self.keyboard.is_action_active(KeyAction.LOOK_DOWN):
-            self.camera.pitch_look(-12.0 * dt)
+        if not self.vehicle_ctrl.is_driving:
+            if self.keyboard.is_action_active(KeyAction.LOOK_UP):
+                self.camera.pitch_look(12.0 * dt)
+            elif self.keyboard.is_action_active(KeyAction.LOOK_DOWN):
+                self.camera.pitch_look(-12.0 * dt)
 
-        # Actions
-        if self.keyboard.has_event(KeyAction.JUMP):
-            self.camera.jump()
+            if self.keyboard.has_event(KeyAction.JUMP):
+                self.camera.jump()
+
+        # Actions & System Toggles
         if self.keyboard.has_event(KeyAction.TOGGLE_MAP):
             self.hud.show_minimap = not self.hud.show_minimap
             self.hud.set_notification(f"GPS RADAR: {'ENABLED' if self.hud.show_minimap else 'DISABLED'}")
@@ -275,14 +386,9 @@ class Game:
                 bearing = lm.bearing_from(self.camera.pos.x, self.camera.pos.y)
                 desc = lm.description if len(lm.description) <= 35 else lm.description[:32] + "..."
                 self.hud.set_notification(f"★ [{lm.district}] {lm.name} ({dist:.0f}m {bearing}) - {desc}", duration=4.0)
-        if self.keyboard.has_event(KeyAction.INTERACT):
-            talk_res = self.pedestrians.interact_with_focused(self.camera.pos.x, self.camera.pos.y, self.camera.dir.x, self.camera.dir.y)
-            if talk_res:
-                archetype, quote = talk_res
-                arch_name = archetype.replace('_', ' ').title()
-                self.hud.set_notification(f"[{arch_name}]: \"{quote}\"", duration=4.5)
         if self.keyboard.has_event(KeyAction.HONK_HORN):
             self.pedestrians.alert_nearby(self.camera.pos.x, self.camera.pos.y)
+            self.soundscape.play("horn")
             self.hud.set_notification("HONK! CITIZENS & CARS ALERTED", duration=2.0)
 
     def _update_demo_camera(self, dt: float):
@@ -290,12 +396,11 @@ class Game:
         self.demo_timer += dt
         # Move forward automatically along road grid
         self.camera.move_forward(dt, is_sprinting=False, world_map=self._active_map())
-        
+
         # Slowly sweep camera yaw and turn at intersections
         ix = int(self.camera.pos.x)
         iy = int(self.camera.pos.y)
         if (ix, iy) in self.city_map.traffic_lights:
-            # Turn slightly
             self.camera.rotate(0.3 * dt)
         else:
             self.camera.rotate(math.sin(self.demo_timer * 0.5) * 0.15 * dt)
@@ -307,22 +412,54 @@ class Game:
         self.pedestrians.update(dt)
         self.day_night.update(dt)
         self.weather.update(dt, self.screen_w, self.screen_h)
+        self.soundscape.update_radio(dt)
+
+        # Driving physics stay on the single vehicle controller module
+        if self.vehicle_ctrl.is_driving:
+            collided = self.vehicle_ctrl.update_physics(
+                dt=dt,
+                throttle=self._throttle,
+                steer_input=self._steer_input,
+                camera=self.camera,
+                city_map=self.city_map,
+                other_vehicles=self.traffic.vehicles,
+                nitro=self._nitro_request
+            )
+            if collided:
+                self.soundscape.play("thud")
+
+        is_raining = self.weather.current_weather in (WeatherType.RAIN, WeatherType.STORM, WeatherType.ACID_RAIN)
+        self.cockpit_hud.update(dt, is_raining=is_raining)
 
         # Check focused pedestrian for interaction prompt
         focused_ped = self.pedestrians.get_focused_pedestrian(self.camera.pos.x, self.camera.pos.y, self.camera.dir.x, self.camera.dir.y)
-        if focused_ped:
-            self.hud.interaction_prompt = f"[F] Talk with {focused_ped.archetype.value.replace('_', ' ').title()}"
+        if focused_ped and not self.vehicle_ctrl.is_driving:
+            self.hud.interaction_prompt = f"[E] Talk with {focused_ped.archetype.value.replace('_', ' ').title()}"
         else:
             self.hud.interaction_prompt = None
+
+        # Contextual center prompt (drive / talk)
+        self.current_prompt = None
+        if not self.vehicle_ctrl.is_driving and not self.active_dialogue and self.interior_view is None:
+            nearby_v = self.traffic.get_nearby_vehicle(self.camera.pos.x, self.camera.pos.y)
+            if nearby_v:
+                self.current_prompt = f"[F] DRIVE VEHICLE ({nearby_v.vtype.value})"
+            else:
+                nearby_npc = self.traffic.get_nearby_npc(self.camera.pos.x, self.camera.pos.y)
+                if nearby_npc:
+                    self.current_prompt = f"[E] TALK TO {nearby_npc.name} ({nearby_npc.title})"
 
         self.hud.update(dt, weather=self.weather)
 
     def _render_frame(self):
         self.buffer.clear()
-        
-        # Collect dynamic sprites (traffic vehicles, static props, and pedestrians)
+
+        # Collect dynamic sprites (traffic vehicles, static props, pedestrians,
+        # and themed furniture while inside a building)
         sprites = self.traffic.get_all_sprites_for_camera(self.camera.pos.x, self.camera.pos.y) + \
                   self.pedestrians.get_all_sprites_for_camera(self.camera.pos.x, self.camera.pos.y)
+        if self.interior_view is not None:
+            sprites = list(self.interior_view.props) + sprites
 
         # 3D Raycasting & projection
         self.raycaster.render(
@@ -342,6 +479,13 @@ class Game:
             sprites=sprites,
             day_night=self.day_night,
             weather=self.weather,
+            soundscape=self.soundscape,
             fps=self.fps,
+            prompt_text=self.current_prompt,
+            active_dialogue=self.active_dialogue,
             buffer=self.buffer
         )
+
+        # First-person cockpit dashboard takes over while driving
+        is_raining = self.weather.current_weather in (WeatherType.RAIN, WeatherType.STORM, WeatherType.ACID_RAIN)
+        self.cockpit_hud.render(self.vehicle_ctrl, self.buffer, is_raining=is_raining)

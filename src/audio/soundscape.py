@@ -1,8 +1,11 @@
 """
 Zero-dependency Retro Soundscape & Procedural Audio Engine for Astra 3D.
 Generates pure standard library WAV synthesizers and non-blocking sound playback.
+Also hosts the in-game Radio Tuner (stations, tracklists, EQ visualizer)
+ported from the M2 engine branch's sound system.
 Author: Valerie Sterling ⚡ (3D Raycaster & Rasterization Specialist)
-Status: M3 WORK-IN-PROGRESS — module is implemented and unit-tested (tests/test_vehicle_audio.py) but not yet integrated into the main Game loop (src/game.py).
+Status: M2 INTEGRATION — sole production audio engine; wired into the main
+Game loop (src/game.py) for effects and radio playback.
 """
 
 import os
@@ -10,10 +13,110 @@ import sys
 import wave
 import struct
 import math
+import time
 import tempfile
 import threading
 import subprocess
-from typing import Dict, Optional
+from typing import Dict, List, Optional
+
+
+class RadioStation:
+    """One tunable radio channel with a rotating tracklist."""
+
+    def __init__(self, freq: str, name: str, genre: str, tracklist: List[str]):
+        self.freq = freq
+        self.name = name
+        self.genre = genre
+        self.tracklist = tracklist
+        self.current_track_idx = 0
+        self.track_timer = 0.0
+        self.track_duration = 25.0
+
+    def update(self, dt: float):
+        self.track_timer += dt
+        if self.track_timer >= self.track_duration:
+            self.track_timer = 0.0
+            self.current_track_idx = (self.current_track_idx + 1) % len(self.tracklist)
+
+    def get_now_playing(self) -> str:
+        return self.tracklist[self.current_track_idx]
+
+
+class RadioTuner:
+    """Cycles radio stations and animates the ASCII equalizer readout."""
+
+    def __init__(self):
+        self.current_station_idx = 0
+        self.eq_anim_timer = 0.0
+
+        self.stations: List[RadioStation] = [
+            RadioStation(
+                "98.4 FM",
+                "ASTRA RETROWAVE",
+                "Synthwave / Cyberpunk",
+                [
+                    "Midnight Overdrive — Neon Highway",
+                    "Laser Grid Horizon — CyberVance",
+                    "Metropolis Dreams — 80s Skyline",
+                    "Tokyo Drift 2099 — Synth Core"
+                ]
+            ),
+            RadioStation(
+                "104.2 FM",
+                "CYBERPUNK BEATS",
+                "Dark Electro / Industrial",
+                [
+                    "Neural Uplink — Glitch Mob",
+                    "Subway Bass Pulse — District 4",
+                    "Neon Shadow — Hacker Groove",
+                    "Matrix Collision — Overclocked"
+                ]
+            ),
+            RadioStation(
+                "88.9 FM",
+                "METRO JAZZ NOCTURNE",
+                "Lofi / Smooth City Jazz",
+                [
+                    "Raindrops on Asphalt — Blue Note",
+                    "Late Night Diner — Coffee & Sax",
+                    "Streetlamp Solitude — Midnight Trio",
+                    "Brownstone Balcony — Acoustic Vibes"
+                ]
+            ),
+            RadioStation(
+                "92.5 FM",
+                "METROPOLIS NEWS & POLICE RADAR",
+                "Live Radio Broadcast",
+                [
+                    "Traffic Alert: 2nd Avenue Clear",
+                    "Weather Report: Night Rain Expected",
+                    "City Mayor: Central Plaza Renovation",
+                    "Scanner: Patrol Active in Downtown"
+                ]
+            )
+        ]
+
+    def next_station(self) -> RadioStation:
+        self.current_station_idx = (self.current_station_idx + 1) % len(self.stations)
+        return self.stations[self.current_station_idx]
+
+    def get_current_station(self) -> RadioStation:
+        return self.stations[self.current_station_idx]
+
+    def update(self, dt: float):
+        self.eq_anim_timer += dt * 6.0
+        for station in self.stations:
+            station.update(dt)
+
+    def get_eq_visualizer(self, bars: int = 6) -> str:
+        """Returns animated ASCII audio equalizer bars e.g. ' ▃▅█▅▃'."""
+        eq_chars = [' ', '▂', '▃', '▄', '▅', '▆', '▇', '█']
+        out = []
+        for i in range(bars):
+            val = (math.sin(self.eq_anim_timer + i * 1.3) + 1.0) / 2.0
+            idx = int(val * (len(eq_chars) - 1))
+            out.append(eq_chars[idx])
+        return "".join(out)
 
 
 class SoundscapeManager:
@@ -21,17 +124,48 @@ class SoundscapeManager:
 
     def __init__(self, enabled: bool = True):
         self.enabled = enabled
-        self.temp_dir = tempfile.mkdtemp(prefix="astra_audio_")
+        # Tempdir is created lazily on first real synthesis need so a
+        # mute-default session never touches the filesystem at construction
+        self.temp_dir: Optional[str] = None
         self.sound_cache: Dict[str, str] = {}
         self.is_muted = not enabled
         self._lock = threading.Lock()
+        self.radio = RadioTuner()
 
         # Pre-synthesize retro 8-bit sound effects
         if self.enabled:
             self._synthesize_sound_bank()
 
+    def _ensure_tempdir(self) -> str:
+        if self.temp_dir is None:
+            self.temp_dir = tempfile.mkdtemp(prefix="astra_audio_")
+        return self.temp_dir
+
+    def play_beep(self):
+        """Emits a short acoustic terminal bell pulse (UI confirmation)."""
+        if self.is_muted:
+            return
+        try:
+            sys.stdout.write('\a')
+            sys.stdout.flush()
+        except Exception:
+            pass
+
+    def next_station(self) -> RadioStation:
+        """Tunes to the next radio station and returns it."""
+        return self.radio.next_station()
+
+    def get_current_station(self) -> RadioStation:
+        return self.radio.get_current_station()
+
+    def get_eq_visualizer(self, bars: int = 6) -> str:
+        return self.radio.get_eq_visualizer(bars)
+
+    def update_radio(self, dt: float):
+        self.radio.update(dt)
+
     def _generate_wav(self, filename: str, duration: float, sample_rate: int, wave_gen_fn) -> str:
-        filepath = os.path.join(self.temp_dir, filename)
+        filepath = os.path.join(self._ensure_tempdir(), filename)
         num_samples = int(duration * sample_rate)
         
         with wave.open(filepath, 'w') as wav_file:
@@ -122,6 +256,12 @@ class SoundscapeManager:
 
     def toggle_mute(self) -> bool:
         self.is_muted = not self.is_muted
+        if not self.is_muted and not self.sound_cache:
+            # First audible request without a synthesized bank: build it now
+            try:
+                self._synthesize_sound_bank()
+            except Exception:
+                pass
         return not self.is_muted
 
     def cleanup(self):
@@ -129,7 +269,9 @@ class SoundscapeManager:
             for f in self.sound_cache.values():
                 if os.path.exists(f):
                     os.remove(f)
-            if os.path.exists(self.temp_dir):
+            self.sound_cache.clear()
+            if self.temp_dir and os.path.exists(self.temp_dir):
                 os.rmdir(self.temp_dir)
+            self.temp_dir = None
         except Exception:
             pass

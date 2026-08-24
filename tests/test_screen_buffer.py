@@ -37,9 +37,10 @@ class TestScreenBufferAndHUD(unittest.TestCase):
         city_map = CityMap(width=42, height=42)
         day_night = DayNightCycle()
         weather = WeatherSystem()
+        from src.audio.soundscape import SoundscapeManager
+        sound = SoundscapeManager(enabled=False)
         hud = HUD(show_minimap=True)
-
-        hud.render(cam, city_map, [], day_night, weather, 60.0, buf)
+        hud.render(cam, city_map, [], day_night, weather, sound, 60.0, "[E] ENTER", None, buf)
         
         # Verify top header bar rendered
         p_top = buf.pixels[0][2]

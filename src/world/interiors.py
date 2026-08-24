@@ -7,12 +7,18 @@ InteriorView wrapper implements the same query surface as CityMap (is_solid,
 get_wall_type, ...) and is fed ONLY to player-facing systems (raycaster +
 camera physics); traffic and pedestrians keep querying the raw world.
 
+Themed storefront content (Ramen Bar / Arcade / Hotel Lobby names, wall
+textures, and furniture props) was ported from the M2 engine branch onto this
+architecture: rooms are still real footprints entered through detected
+doorways, not teleport chambers.
+
 Author: Nora Voss ⚙️ (OpenCode Platform)
 """
 
 import random
 from typing import Dict, List, Optional, Tuple
 
+from src.entities.sprite import Sprite
 from src.world.city_map import FloorType
 
 
@@ -28,6 +34,9 @@ WALL_TYPE_DOORWAY = 13
 ENTER_RADIUS = 0.95   # distance from exterior door center that triggers entry
 EXIT_RADIUS = 0.60    # distance from interior door center that triggers exit
 
+# Minimum footprint for furniture placement (smaller masses stay bare)
+FURNITURE_MIN_SIZE = 6
+
 
 class Doorway:
     __slots__ = ('bld_id', 'ext', 'inner', 'side')
@@ -37,6 +46,89 @@ class Doorway:
         self.ext = ext        # exterior wall cell containing the door
         self.inner = inner    # matching walkable cell on the interior ring
         self.side = side      # 0=E,1=S,2=W,3=N (direction from door toward road)
+
+
+class InteriorTheme:
+    """Storefront identity applied to enterable buildings (ported M2 content)."""
+
+    __slots__ = ('room_id', 'name', 'icon', 'wall_texture', '_furniture_builder')
+
+    def __init__(self, room_id: str, name: str, icon: str, wall_texture: int,
+                 furniture_builder=None):
+        self.room_id = room_id
+        self.name = name
+        self.icon = icon
+        self.wall_texture = wall_texture
+        self._furniture_builder = furniture_builder
+
+    def build_furniture(self, cx: float, cy: float) -> List[Sprite]:
+        if self._furniture_builder is None:
+            return []
+        return self._furniture_builder(cx, cy)
+
+
+def _ramen_counter_sprite(x: float, y: float) -> List[Sprite]:
+    chars = [
+        " [STEAMING NOODLES] ",
+        "   (~)   (~)   (~)  ",
+        "====================",
+        "  |  |  |  |  |  |  "
+    ]
+    fg = [
+        [(255, 240, 180) for _ in range(20)],
+        [(255, 200, 50) for _ in range(20)],
+        [(180, 100, 50) for _ in range(20)],
+        [(100, 60, 30) for _ in range(20)]
+    ]
+    return [Sprite(x, y, "RAMEN_BAR", chars, fg,
+                   scale_x=1.2, scale_y=0.7, is_luminous=True)]
+
+
+def _arcade_cabinet_sprite(x: float, y: float) -> List[Sprite]:
+    chars = [
+        " [TOP 1: 999,990] ",
+        "  <ASTRA RUNNER>  ",
+        "  [CRT]     [CRT] ",
+        "   (^)       (^)  "
+    ]
+    fg = [
+        [(255, 255, 100) for _ in range(18)],
+        [(0, 240, 255) for _ in range(18)],
+        [(255, 50, 180) for _ in range(18)],
+        [(50, 255, 150) for _ in range(18)]
+    ]
+    return [Sprite(x, y, "ARCADE_CABINET", chars, fg,
+                   scale_x=1.1, scale_y=0.7, is_luminous=True)]
+
+
+def _hotel_desk_sprite(x: float, y: float) -> List[Sprite]:
+    chars = [
+        "  * CHANDELIER *  ",
+        " [CONCIERGE DESK] ",
+        "  | [GOLD BELL] | ",
+        "=================="
+    ]
+    fg = [
+        [(255, 240, 150) for _ in range(18)],
+        [(220, 180, 100) for _ in range(18)],
+        [(255, 220, 50) for _ in range(18)],
+        [(150, 120, 70) for _ in range(18)]
+    ]
+    return [Sprite(x, y, "HOTEL_DESK", chars, fg,
+                   scale_x=1.2, scale_y=0.7, is_luminous=True)]
+
+
+# Storefront catalog ported from the M2 branch's build_interiors_catalog()
+BUILDING_THEMES = (
+    InteriorTheme("RAMEN_SHOP", "KAITO'S 24H CYBER RAMEN", "~", 101, _ramen_counter_sprite),
+    InteriorTheme("ARCADE", "NEON MATRIX CYBER ARCADE", "&", 102, _arcade_cabinet_sprite),
+    InteriorTheme("HOTEL_LOBBY", "THE GRAND ASTRA HOTEL LOBBY", "^", 103, _hotel_desk_sprite),
+)
+
+
+def theme_for_building(bld_id: int) -> InteriorTheme:
+    """Deterministic theme rotation across enterable buildings."""
+    return BUILDING_THEMES[bld_id % len(BUILDING_THEMES)]
 
 
 class InteriorSpace:
@@ -50,6 +142,7 @@ class InteriorSpace:
         self.w = bw
         self.h = bh
         self.doorway = doorway
+        self.theme = theme_for_building(bld_id)
 
         rng = random.Random(seed * 7919 + bld_id)
         grid = [[CELL_WALL for _ in range(bw)] for _ in range(bh)]
@@ -103,6 +196,13 @@ class InteriorView:
         self.world = world
         self.in_interior = True
 
+        # Themed furniture, placed toward the back wall of large enough rooms
+        self.props: List[Sprite] = []
+        if space.w >= FURNITURE_MIN_SIZE and space.h >= FURNITURE_MIN_SIZE:
+            fx = space.x0 + space.w / 2.0
+            fy = space.y0 + space.h * 0.35
+            self.props.extend(space.theme.build_furniture(fx, fy))
+
     # ---- geometry queries used by Camera + Raycaster ----
     def is_solid(self, fx: float, fy: float) -> bool:
         code = self.space.code_at(int(fx), int(fy))
@@ -114,11 +214,9 @@ class InteriorView:
         code = self.space.code_at(x, y)
         if code is None:
             return self.world.get_wall_type(x, y)
-        if code == CELL_WINDOW:
-            return WALL_TYPE_INTERIOR
         if code == CELL_DOOR:
             return WALL_TYPE_DOORWAY
-        return WALL_TYPE_INTERIOR
+        return self.space.theme.wall_texture
 
     def get_wall_height(self, wall_type: int) -> float:
         return self.world.get_wall_height(wall_type)

@@ -4,7 +4,7 @@ Integrated with Darius Thorne's Next-Gen Procedural World Engine.
 """
 
 from enum import IntEnum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 from src.world.textures import get_texture
 from src.world.procedural_gen import (
     ProceduralCityGenerator,
@@ -74,7 +74,7 @@ class CityMap:
         self,
         width: int = 42,
         height: int = 42,
-        seed: Optional[int | str] = None,
+        seed: Optional[Union[int, str]] = None,
         preset: str = "DEFAULT"
     ):
         self.width = width
@@ -134,7 +134,7 @@ class CityMap:
     @classmethod
     def from_seed(
         cls,
-        seed: int | str,
+        seed: Union[int, str],
         width: int = 42,
         height: int = 42,
         preset: str = "DEFAULT"
