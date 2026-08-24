@@ -35,3 +35,8 @@ Ported four engine techniques from the ASCII City reference into the pure-Python
 - **Night City skyline**: tower height_mults boosted (Neon 3.2→7.0, Glass 2.5→5.0, Arcology 3.5→8.0, Megastructure 3.0→6.0, Hotel 2.0→3.5) while docks/historic stay low for canyon contrast; downtown/financial/neon-district palettes now weighted toward tall neon masses.
 - **Live-sync hazard confirmed**: the integration pipeline snapshots the live tree mid-edit. This turn it regressed raycaster.py to pre-`d91d97f` (losing the reviewer's window-frame fix). Re-applied their exact patch via `git apply`. Anyone editing engine files: re-run the full suite immediately before handing off.
 - **Results**: 114/114 tests green (+4: car face semantics, police siren both faces, skyline height floor, downtown tower-share weighting); benchmark median 282.6 FPS vs 245 pre-session baseline (taller towers improve the covered-top early-out).
+
+## Workspace change — dedicated worktree
+- After two live-sync races clobbered in-flight engine edits, Leon directed all my future work into a dedicated worktree.
+- **Location**: `.worktrees/nora-voss` on branch `nora-voss/worktree`, forked from `d5111cc` (114/114 green at fork point).
+- From now on: engine edits happen there; integration picks up my shifts by merging the branch, never by snapshotting the master live tree mid-shift.
