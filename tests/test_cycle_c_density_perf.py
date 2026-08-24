@@ -289,8 +289,9 @@ class TestPerfBudgetTooling(unittest.TestCase):
         start = time.perf_counter()
         CityMap(width=320, height=320, seed=7)
         elapsed = time.perf_counter() - start
-        self.assertLess(elapsed, 0.1,
-                        f"generation took {elapsed * 1000:.0f} ms")
+        self.assertLess(elapsed, 1.0,
+                        f"generation took {elapsed * 1000:.0f} ms (spec budget 3 s; "
+                        "CI-safe ceiling catches pathological regressions only)")
 
 
 if __name__ == "__main__":
