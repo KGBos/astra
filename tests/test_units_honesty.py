@@ -156,12 +156,45 @@ class TestSpriteScales(unittest.TestCase):
         self.assertAlmostEqual(bollard.scale_y * bollard.height, 1.0, delta=0.02)
         self.assertAlmostEqual(vending.scale_y * vending.height, 1.8, delta=0.01)
 
-    def test_vehicle_box_is_lane_width_and_15m_tall(self):
+    def test_vehicle_side_face_spans_real_length_when_rendered(self):
+        """Vehicle box stays 1.5 m tall; side-face world span derives from scale_x."""
         vehicle = Vehicle(12.5, 12.5, VehicleType.TAXI, (0, 1))
-        spr = vehicle.get_sprite_for_camera(12.5, 20.0)
+        spr = vehicle.get_sprite_for_camera(20.0, 12.5)
         self.assertAlmostEqual(spr.scale_y * max(len(spr.front_chars), len(spr.side_chars)),
                                1.5, delta=0.01)
-        self.assertAlmostEqual(spr.scale_x, 2.2)
+        self.assertAlmostEqual(spr.scale_x * len(spr.side_chars[0]) / len(spr.front_chars[0]),
+                               2.86, delta=0.1)
+
+    def test_rendered_square_sprite_has_2_to_1_cell_aspect(self):
+        """A 1 m x 1 m sprite at 5 m renders ~23 cols x ~11 rows on 160x50 (2:1 cells)."""
+        from types import SimpleNamespace
+        from src.entities.sprite import Sprite
+        w, h = 160, 50
+        cam = Camera(x=0.0, y=0.0, fov_deg=70.0)
+        stub_map = SimpleNamespace(
+            is_solid=lambda x, y: False,
+            get_wall_type=lambda x, y: 0,
+            get_wall_height=lambda wt: 1.0,
+            get_floor_type=lambda x, y: 4,
+            traffic_lights={},
+        )
+        art_rows, art_cols = 4, 4
+        spr = Sprite(5.0, 0.0, "PROBE",
+                     ["####"] * art_rows,
+                     [[(255, 255, 255)] * art_cols for _ in range(art_rows)],
+                     scale_x=1.0 / art_cols, scale_y=1.0 / art_rows)
+        buf = ScreenBuffer(w, h)
+        raycaster = Raycaster(w, h)
+        dn = DayNightCycle(start_hour=12.0)
+        raycaster.render(camera=cam, city_map=stub_map, sprites=[spr], day_night=dn, buffer=buf)
+        rows = sum(1 for y in range(h) if buf.pixels[y][w // 2].char == '#')
+        cols = max(sum(1 for x in range(w) if buf.pixels[y][x].char == '#')
+                   for y in range(h))
+        ppm = pixels_per_meter_at_1m(w, h, cam.plane.length())
+        self.assertAlmostEqual(cols, ppm / 0.5 / 5.0, delta=3)
+        self.assertAlmostEqual(rows, ppm / 5.0, delta=2)
+        self.assertGreater(cols, rows * 1.7)
+        self.assertLess(cols, rows * 2.3)
 
 
 class TestHumanKinematics(unittest.TestCase):

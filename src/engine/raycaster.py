@@ -760,8 +760,9 @@ class Raycaster:
                 continue
 
             rows_per_m = ppm / transform_y
+            cols_per_m = rows_per_m / CELL_ASPECT
             spr_h = abs(int(rows_per_m * spr.scale_y * spr.height))
-            spr_w = abs(int(rows_per_m * spr.scale_x * spr.width))
+            spr_w = abs(int(cols_per_m * spr.scale_x * spr.width))
 
             ground_row = horizon_y + rows_per_m * camera.eye_m - rows_per_m * spr.vertical_offset
             draw_y0 = int(ground_row - spr_h)
@@ -841,7 +842,8 @@ class Raycaster:
         rows = max(len(face_chars), len(spr.side_chars))
 
         # Full-face view must match the legacy flat billboard footprint
-        cell_px = (rows_per_m * spr.scale_x) / float(front_w)
+        cols_per_m = rows_per_m / CELL_ASPECT
+        cell_px = (cols_per_m * spr.scale_x) / float(front_w)
         face_span = cell_px * face_w * front_share
         side_span = cell_px * side_w * (1.0 - front_share)
         total_span = face_span + side_span
