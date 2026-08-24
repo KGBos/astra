@@ -59,3 +59,11 @@ Leon flagged: flat-looking cars, unnecessary head-bob, buildings' "basements" vi
 - VolumetricSprite physical footprint params (front/side/height units, 1 tile ~= 1 m).
 - Cars now project as real sedans (~1.8 x 4.2 x 1.4 u): ~15x9 cells at 4.5 u vs physics-expected ~13x10; exact ground contact retained.
 - Vending machines sized physically (0.9 x 0.6 x 1.5). Renderer consumes units directly; corner_smooth (gate addition) untouched.
+
+## Shift 6 — World Scale Standard (Leon: "everything has to be to scale")
+Dispatched two research agents (real-world dimension standards; OSS engine scale conventions). Synthesis adopted: 1 tile = 1 m; eye 1.62 m; story 3.0 m; sedan 4.8x1.9x1.45; bus 11.9x2.55x3.0.
+- New `src/world/scale.py` registry + `vehicle_dims.py`; facades/furniture/cars derive from it. docs/WORLD_SCALE.md documents the standard and the no-hand-tuning rule.
+- Projection bug fixed: volumetric faces used normalized share blend (stubby cars); replaced with true orthographic spans (W*|cos b| / L*|sin b|).
+- Camera/jump rescaled to meters; themed interiors (M2 101-103) raised to 2.7 m ceilings.
+- Tier-2 skyline scanner upgraded: continues past short far masses to stack taller silhouettes (distant skyline layering).
+- test_world_scale.py guards registry completeness (caught M2 themes immediately) + life-size projection windows. 147/147 green.
