@@ -3,7 +3,7 @@ ASCII Texture and Facade definitions for Astra 3D.
 Textures provide 2D character patterns and TrueColor RGB color palettes.
 """
 
-from typing import Tuple, List
+from typing import Dict, Tuple, List
 
 
 class AsciiTexture:
@@ -504,6 +504,76 @@ def build_doorway() -> AsciiTexture:
     return AsciiTexture("DOORWAY", w, h, chars, fg_colors, bg_colors, height_mult=1.0)
 
 
+def build_ramen_interior() -> AsciiTexture:
+    """Ramen counter / kitchen wall (ported from the M2 branch)."""
+    chars = [
+        "========",
+        "| MENU |",
+        "|######|",
+        "|######|",
+        "|------|",
+        "|STOOLS|",
+        "| |  | |",
+        "========"
+    ]
+    fg, bg = _make_uniform_palette(8, 8, (255, 200, 100), (45, 25, 15))
+    return AsciiTexture("RAMEN_INTERIOR", 8, 8, chars, fg, bg, height_mult=1.0)
+
+
+def build_arcade_interior() -> AsciiTexture:
+    """Arcade cabinet wall with glowing CRT banks (ported from the M2 branch)."""
+    chars = [
+        "[ARCADE]",
+        "|#CRT# |",
+        "|[JOY] |",
+        "|######|",
+        "[ARCADE]",
+        "|#CRT# |",
+        "|[JOY] |",
+        "========"
+    ]
+    fg_colors = []
+    bg_colors = []
+    for y in range(8):
+        fg_row = []
+        bg_row = []
+        for x in range(8):
+            if "CRT" in chars[y]:
+                fg_row.append((0, 255, 200))
+                bg_row.append((10, 30, 25))
+            else:
+                fg_row.append((255, 50, 180))
+                bg_row.append((30, 10, 30))
+        fg_colors.append(fg_row)
+        bg_colors.append(bg_row)
+    return AsciiTexture("ARCADE_INTERIOR", 8, 8, chars, fg_colors, bg_colors, height_mult=1.0)
+
+
+def build_hotel_interior() -> AsciiTexture:
+    """Hotel marble lobby wall (ported from the M2 branch)."""
+    chars = [
+        "/======\\",
+        "|MARBLE|",
+        "|  ::  |",
+        "|  ::  |",
+        "|------|",
+        "| GOLD |",
+        "|  ::  |",
+        "\\======/"
+    ]
+    fg, bg = _make_uniform_palette(8, 8, (255, 230, 160), (35, 30, 25))
+    return AsciiTexture("HOTEL_INTERIOR", 8, 8, chars, fg, bg, height_mult=1.2)
+
+
+def build_interior_textures() -> Dict[int, AsciiTexture]:
+    """Themed interior wall textures for enterable buildings."""
+    return {
+        101: build_ramen_interior(),
+        102: build_arcade_interior(),
+        103: build_hotel_interior(),
+    }
+
+
 # Texture registry
 TEXTURE_REGISTRY = {
     1: build_skyscraper_glass(),
@@ -520,6 +590,9 @@ TEXTURE_REGISTRY = {
     12: build_interior_wall(),
     13: build_doorway(),
 }
+
+# Register interior textures
+TEXTURE_REGISTRY.update(build_interior_textures())
 
 
 def get_texture(texture_id: int) -> AsciiTexture:

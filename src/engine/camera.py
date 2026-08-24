@@ -36,6 +36,9 @@ class Camera:
         self.bob_timer = 0.0
         self.bob_amount = 0.0
 
+        # Vehicle headlights (beam cone boost in the raycaster)
+        self.headlights_on = True
+
     def set_direction(self, angle_rad: float):
         """Sets absolute looking angle in radians (0 = East, pi/2 = South, pi = West, 3pi/2 = North)."""
         plane_len = self.plane.length()

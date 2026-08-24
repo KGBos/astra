@@ -1,6 +1,6 @@
 # Astra 3D Controls & Navigation Guide
 
-## Movement & Camera Controls
+## 🚶 Pedestrian & Camera Controls
 | Action | Key | Description |
 | :--- | :--- | :--- |
 | **Move Forward** | `W` or `↑` | Walk forward in looking direction |
@@ -8,10 +8,9 @@
 | **Strafe Left** | `A` | Step sideways to the left |
 | **Strafe Right** | `D` | Step sideways to the right |
 | **Turn Left** | `Q` or `←` | Rotate camera view left |
-| **Turn Right** | `E` or `→` | Rotate camera view right |
-| **Look Up** | `I` | Pitch camera view upward |
-| **Look Down** | `K` | Pitch camera view downward |
-| **Sprint** | `Shift + W` / `W (caps)` | Sprint at $1.8\times$ movement velocity |
+| **Turn Right** | `→` | Rotate camera view right |
+| **Look Up / Down** | `I` / `K` | Pitch camera view upward / downward |
+| **Sprint** | `Shift + W` | Sprint at $1.8\times$ movement velocity |
 | **Jump** | `Space` | Jump with gravity simulation |
 
 ---
@@ -20,23 +19,41 @@
 | Action | Input | Description |
 | :--- | :--- | :--- |
 | **Look Around** | `Left-drag` | Drag mouse to turn yaw and pitch the camera |
-| **Talk** | `Left-click` | Interact with focused pedestrian |
+| **Talk** | `Left-click` / `E` | Interact with focused pedestrian or nearby NPC |
 | **Tactical Beam** | `Right-click` | Toggle flashlight beam |
 | **Jump** | `Middle-click` | Jump with gravity simulation |
 | **Look Up / Down** | `Scroll Wheel` | Nudge camera pitch |
 
 ---
 
-## World Interaction & HUD Shortcuts
+## 🏎️ Vehicle Driving Controls
 | Action | Key | Description |
 | :--- | :--- | :--- |
-| **Enter Buildings** | `Walk into a door` | Glowing `EXIT`-bar thresholds are live portals — walk up to one to step inside |
+| **Enter / Exit Vehicle** | `F` | Mount or dismount nearby Taxi, Sedan, Police car, or Bus |
+| **Accelerate** | `W` / `↑` | Apply engine throttle (gearbox auto-reverses on brake) |
+| **Brake / Reverse** | `S` / `↓` | Apply brakes, then reverse gear |
+| **Steer Left / Right** | `A` / `D` | Turn front wheels (speed-sensitive, self-centering) |
+| **Turbo Nitro Boost** | `Shift + W` | Engage nitrous oxide injection with speed lines |
+| **Toggle Headlights** | `L` | Switch the high-beam lighting cone on/off |
+| **Honk Car Horn** | `H` | Sound vehicle horn and broadcast alert |
+| **Cockpit Dashboard** | Automatic | Speedometer, gear indicator, tachometer, sirens while driving |
+
+---
+
+## 🏬 World Interaction, Interiors & NPCs
+| Action | Key | Description |
+| :--- | :--- | :--- |
+| **Enter Buildings** | `Walk into a door` | Glowing `EXIT`-bar thresholds are live portals — walk up to one to step inside a themed storefront (Ramen Bar, Arcade, Hotel Lobby) |
 | **Exit Buildings** | `Walk to inner door` | Inside, return to the glowing threshold to step back onto the street |
 | **Live Windows** | Automatic | Interior windows render the real city outside, from your inside perspective |
+| **Talk / Dialogue Choices** | `E` then `1`, `2`, `3` | Start branching conversations with named NPC characters |
+| **Leave Conversation** | `Space` / `Esc` | Exit the dialogue box |
+| **Tune Radio Station** | `G` | Cycle radio channels (Retrowave, Beats, Jazz, News) |
+| **Cycle Landmarks** | `U` | Inspect the next point of interest |
 | **Toggle GPS Radar** | `M` | Show/hide the top-right mini-map radar |
 | **Skip Time of Day** | `T` | Advance clock by 4 hours (Day/Sunset/Night) |
-| **Toggle Weather** | `R` | Cycle weather between Clear, Rain, and Fog |
-| **Honk Horn** | `H` | Sound vehicle horn and broadcast alert |
+| **Toggle Weather** | `R` | Cycle weather between Clear, Rain, Storm, Fog, Snow, Acid Rain |
+| **Re-synthesize City** | `N` | Generate a brand-new procedural metropolis |
 | **Exit Game** | `Esc` or `X` | Cleanly restore terminal state and exit |
 
 ---
@@ -46,6 +63,7 @@
 - **Depth-layer overlap**: rays see past shorter buildings and keep drawing taller towers rising behind them (up to 3 layers per column).
 - **Pseudo-volumetric props**: vending machines and similar street objects project distinct front/side faces with an angle-dependent corner split — not flat billboards.
 - **Live-window portals**: building windows act as transparent portals; the engine renders a secondary exterior view clipped inside each glass opening.
+- **Headlight beams**: vehicle headlights cast an angle-dependent brightness cone onto near-field walls at night.
 
 ---
 

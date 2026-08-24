@@ -37,19 +37,21 @@ def main():
 Controls:
   [W/A/S/D]        Move forward / Strafe left / Move back / Strafe right
   [Mouse Drag]     Look around (yaw + pitch)
-  [Left Click]     Talk to nearby pedestrian
+  [E / Left Click] Talk to nearby pedestrian or NPC
   [Right Click]    Toggle Tactical Beam
-  [Q / E] or [← / →] Turn Left / Turn Right
+  [Q / ← →]        Turn Left / Turn Right
   [I / K]          Look Up / Look Down (Pitch)
-  [Shift + W]      Sprint
+  [Shift + W]      Sprint (Nitro while driving)
   [Space]          Jump
-  [G] or [N]       Procedurally Re-synthesize New City
-  [L]              Cycle & Inspect City Landmarks (POI)
+  [F]              Enter / Exit nearby vehicle
+  [G]              Tune Radio Station
+  [L]              Toggle Vehicle Headlights
+  [N]              Procedurally Re-synthesize New City
+  [U]              Cycle & Inspect City Landmarks (POI)
   [M]              Toggle Mini-Map Radar
   [T]              Advance Time of Day
   [R]              Toggle Weather (Clear / Rain)
   [B]              Toggle Tactical Beam
-  [F]              Talk to nearby pedestrian
   [H]              Honk Horn
   [Esc] or [X]     Exit
         """

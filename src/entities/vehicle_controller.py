@@ -1,7 +1,9 @@
 """
 First-Person Vehicle Driving Controller & Physics Simulation for Astra 3D.
 Author: Valerie Sterling ⚡ (3D Raycaster & Rasterization Specialist)
-Status: M3 WORK-IN-PROGRESS — module is implemented and unit-tested (tests/test_vehicle_audio.py) but not yet integrated into the main Game loop (src/game.py).
+Status: M2 INTEGRATION — sole vehicle controller; wired into the main Game
+loop (src/game.py). Includes the nitro boost system ported from the M2
+engine branch's camera-embedded driving prototype.
 """
 
 import math
@@ -13,6 +15,11 @@ from src.world.city_map import CityMap
 
 class VehicleController:
     """Manages player vehicle interaction, driving physics, steering and camera attachment."""
+
+    NITRO_DRAIN_PER_SEC = 40.0
+    NITRO_REGEN_PER_SEC = 15.0
+    NITRO_ACCEL_MULT = 1.8
+    NITRO_MAX_SPEED_MULT = 1.6
 
     def __init__(self):
         self.is_driving = False
@@ -29,6 +36,10 @@ class VehicleController:
         self.heading_angle = 0.0  # radians
         self.siren_active = False
         self.horn_active = False
+
+        # Nitro boost (ported from the M2 branch)
+        self.nitro_active = False
+        self.nitro_meter = 100.0
 
     def try_enter_nearest_vehicle(
         self,
@@ -97,6 +108,7 @@ class VehicleController:
         self.current_vehicle = None
         self.speed = 0.0
         self.siren_active = False
+        self.nitro_active = False
 
     def update_physics(
         self,
@@ -105,13 +117,25 @@ class VehicleController:
         steer_input: float, # -1.0 (left) to +1.0 (right)
         camera: Camera,
         city_map: CityMap,
-        other_vehicles: List[Vehicle]
+        other_vehicles: List[Vehicle],
+        nitro: bool = False
     ) -> bool:
         """Updates vehicle physics, steering kinematics, collisions, and camera synchronization."""
         if not self.is_driving or self.current_vehicle is None:
             return False
 
         collision_event = False
+
+        # 0. Nitro meter (ported from the M2 branch): drains while boosting,
+        # regenerates while idle, and boosts accel/top speed when engaged
+        if nitro and throttle > 0.0 and self.nitro_meter > 5.0:
+            self.nitro_active = True
+        elif self.nitro_meter <= 0.0 or throttle <= 0.0:
+            self.nitro_active = False
+        if self.nitro_active:
+            self.nitro_meter = max(0.0, self.nitro_meter - self.NITRO_DRAIN_PER_SEC * dt)
+        else:
+            self.nitro_meter = min(100.0, self.nitro_meter + self.NITRO_REGEN_PER_SEC * dt)
 
         # 1. Steering Dynamics
         steer_speed = 4.0
@@ -123,7 +147,9 @@ class VehicleController:
 
         # 2. Acceleration / Braking
         if throttle > 0.0:
-            self.speed = min(self.max_forward_speed, self.speed + self.acceleration * throttle * dt)
+            accel_mult = self.NITRO_ACCEL_MULT if self.nitro_active else 1.0
+            speed_cap = self.max_forward_speed * (self.NITRO_MAX_SPEED_MULT if self.nitro_active else 1.0)
+            self.speed = min(speed_cap, self.speed + self.acceleration * throttle * accel_mult * dt)
         elif throttle < 0.0:
             if self.speed > 0.1:
                 # Braking
