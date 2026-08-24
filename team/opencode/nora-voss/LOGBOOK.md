@@ -67,3 +67,9 @@ Dispatched two research agents (real-world dimension standards; OSS engine scale
 - Camera/jump rescaled to meters; themed interiors (M2 101-103) raised to 2.7 m ceilings.
 - Tier-2 skyline scanner upgraded: continues past short far masses to stack taller silhouettes (distant skyline layering).
 - test_world_scale.py guards registry completeness (caught M2 themes immediately) + life-size projection windows. 147/147 green.
+
+## Shift 6 (cont.) — perspective overhaul
+- Aspect-correct vertical projection (_v_proj) now feeds every consumer: walls, sprites, floors, window spans.
+- Story-quantized facade sampling: repeating 3 m floor bands on multi-story facades; a 60 m tower renders ~20 legible floors (27 color-band transitions measured down one column).
+- Movement metric: walk 2.1 m/s / sprint x1.8 / turn 2.4 rad/s from registry; pedestrians human scale.
+- 149/149 tests (+2 metric movement guards).
