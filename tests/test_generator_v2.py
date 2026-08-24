@@ -13,6 +13,7 @@ from collections import deque
 from dataclasses import fields as dataclass_fields
 
 from src.world.city_map import CityMap, FloorType
+from src.entities.traffic_manager import TrafficManager
 from src.world.procedural_gen import (
     CLASS_ARTERIAL,
     CLASS_COLLECTOR,
@@ -249,11 +250,22 @@ class TestDistrictsAtScale(unittest.TestCase):
         quay_cells = sum(1 for y in range(DIM)
                          if self.data.walls[y][quay_col] == 10)
         self.assertGreater(quay_cells, 100, "no continuous quay wall")
-        bridge_cols = sum(
-            1 for x in range(quay_col + 1, DIM - 1)
+        bridge_cells = sum(
+            1 for y in range(DIM) for x in range(quay_col + 1, DIM - 1)
+            if self.data.floors[y][x] == FloorType.BRIDGE)
+        self.assertGreaterEqual(
+            bridge_cells, 1,
+            "harbor front is advertised with bridges but none cross the water")
+        crossing_cols = [
+            x for x in range(quay_col + 1, DIM - 1)
             if sum(1 for y in range(DIM)
-                   if self.data.floors[y][x] == FloorType.BRIDGE) > 100)
-        self.assertGreaterEqual(bridge_cols, 0)  # bridges optional by design
+                   if self.data.floors[y][x] == FloorType.BRIDGE) > DIM // 3]
+        # The bridged arterial straddles the shoreline: most of its 14 m band
+        # lies over water, the rest approaches on land.
+        self.assertGreaterEqual(
+            len(crossing_cols), 8,
+            f"expected a full NS arterial bridging the water, "
+            f"got crossing columns {crossing_cols}")
         bollards = [p for p in self.data.props if "BOLLARD" in p.name.upper()]
         self.assertGreaterEqual(len(bollards), 4, "no mooring bollards")
         marina = [lm for lm in self.data.landmarks
@@ -301,6 +313,20 @@ class TestLandmarks(unittest.TestCase):
                 and self.data.walls[y][x] == 0)
             self.assertGreaterEqual(plaza, 8,
                                     f"{lm.name} has no approach plaza ({plaza} tiles)")
+
+
+class TestLargeMapLandmarkSpacing(unittest.TestCase):
+    def test_512_landmark_min_spacing_floor(self):
+        """At 512x512 the pairwise landmark spacing still respects the 150 m
+        contract floor (the 400 m ceiling is size-dependent and unasserted)."""
+        data = _generate(seed=SEED, width=512, height=512)
+        core = [lm for lm in data.landmarks if lm.landmark_type != "MARINA"]
+        self.assertGreaterEqual(len(core), 8, "512x512 lost the landmark set")
+        for i, a in enumerate(core):
+            for b in core[i + 1:]:
+                d = math.hypot(a.x - b.x, a.y - b.y)
+                self.assertGreaterEqual(d, 150.0,
+                                        f"{a.name} <-> {b.name}: {d:.1f} m")
 
 
 class TestMassingContracts(unittest.TestCase):
@@ -407,6 +433,22 @@ class TestTrafficAndSpawnContracts(unittest.TestCase):
         _generate(seed=123)
         elapsed = time.perf_counter() - start
         self.assertLess(elapsed, 3.0, f"generation took {elapsed:.2f}s")
+
+
+class TestVehicleSpawnFloors(unittest.TestCase):
+    def test_vehicles_spawn_only_on_drivable_road(self):
+        """Traffic spawns must land on real road floors: never harbor water,
+        piers, or sidewalks (harbor-adjacent EW rows previously floated cars
+        on the water band)."""
+        for seed in (SEED, 7, 99):
+            city = CityMap(width=160, height=160, seed=seed)
+            tm = TrafficManager(city, vehicle_count=24)
+            self.assertGreater(len(tm.vehicles), 0, f"seed {seed}: no vehicles spawned")
+            for v in tm.vehicles:
+                ft = city.get_floor_type(int(v.x), int(v.y))
+                self.assertIn(
+                    ft, ROAD_FLOORS,
+                    f"seed {seed}: vehicle on non-road floor {ft} at ({v.x:.1f}, {v.y:.1f})")
 
 
 class TestDeterminismAndCompat(unittest.TestCase):

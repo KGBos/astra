@@ -793,11 +793,15 @@ class Raycaster:
                         tex_y = int((y - draw_y0) * spr.height / max(1, spr_h))
                         tex_y = max(0, min(tex_y, spr.height - 1))
 
-                        char = spr.chars[tex_y][tex_x]
+                        row = spr.chars[tex_y]
+                        # Sprite grids may be ragged: clamp per-row so a
+                        # malformed frame can never tear the render.
+                        sx = max(0, min(tex_x, len(row) - 1))
+                        char = row[sx]
                         if char != ' ':
-                            fg_raw = spr.fg_colors[tex_y][tex_x]
+                            fg_raw = spr.fg_colors[tex_y][sx]
                             fg = (min(255, int(fg_raw[0] * shade)), min(255, int(fg_raw[1] * shade)), min(255, int(fg_raw[2] * shade)))
-                            
+
                             if fog_blend > 0.0 and weather:
                                 fg = _blend_color(fg, weather.fog_color, fog_blend)
 
