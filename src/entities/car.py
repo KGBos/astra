@@ -24,9 +24,10 @@ ALLEY_CRUISE = 5.0
 def cruise_speed_for(city_map, x: float, y: float, heading_dir: Tuple[int, int]) -> float:
     """Cruise speed in m/s for the road a vehicle occupies.
 
-    Road hierarchy is approximated from the uniform grid until Generator v2:
-    every fourth avenue/street is an arterial (13 m/s), every second of the
-    rest a collector (9 m/s), and the remainder alleys (5 m/s).
+    Interim index heuristic over ns_road_cols/ew_road_rows (every fourth line
+    arterial 13 m/s, every second of the rest collector 9 m/s, else alley
+    5 m/s). Generator v2 now exposes the real classes via city_map.road_lanes();
+    consuming them lands with the Cycle C traffic retune.
     """
     dx, dy = heading_dir
     if dy != 0:

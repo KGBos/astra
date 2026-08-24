@@ -26,6 +26,17 @@ Current world is 42×42 tiles ≈ a diorama: crossable on foot in ~9s, roads 2 t
 - NPC/pedestrian density proportional to district area; walkable-scan must remain O(cells) cheap (320² = 102k cells, fine).
 - Interiors: tower lobbies as tall interior volumes; street-level shops on collectors.
 
+> **Cycle B status (landed):** all structural items above are implemented in
+> `procedural_gen.py`. Collector corridors are seeded per-corridor (~62%) so
+> open corridors keep full super-block faces (18–48 m) that local lanes split
+> past 34 m — this is what reconciles the collector rhythm with the block-size
+> band. The central park spans whole arterial corridors (crossing arterials
+> remain as transverses; collectors/locals are pulled out of the green). The
+> harbor sits on the east edge: water band, quay wall (skip-opening where NS
+> roads bridge over), wooden piers and mooring bollards. Lane geometry is
+> exposed via `CityMapData.road_segments` + `build_road_lanes()` /
+> `CityMap.road_lanes()` for the Cycle C traffic retune.
+
 ## 5. Performance Budget (non-negotiable, lands WITH this milestone)
 - Target ≥60 FPS @ 160×50 viewport, full weather, on reference hardware.
 - Near-tier DDA steps scale with sight distance (≈28–34), far-tier stride sampling carries the skyline; floor-casting remains the hot suspect — profile before optimizing.
@@ -35,13 +46,13 @@ Current world is 42×42 tiles ≈ a diorama: crossable on foot in ~9s, roads 2 t
 - [x] textures.py height_mult table → meters (Cycle A)
 - [x] camera.py speeds/eye/jump/radius (Cycle A)
 - [x] raycaster horizon/projection constants audit for non-square assumptions (Cycle A: FOV-derived `pixels_per_meter_at_1m`, eye-height-anchored wall/sprite/floor projection)
-- [ ] traffic_manager spawn/lane math off ns_road_cols hardcode (Cycle A interim: road-index cruise classes 13/9/5 m/s; real hierarchy lands with Generator v2)
-- [ ] pedestrian_manager walkable scan + archetype districts (scan verified <0.5 s at 320²; district archetypes Cycle B)
-- [ ] procedural_gen full rewrite (v2) behind seed contract (existing generator verified functional at default 320×320; spawn spiral capped at radius 24 + avenue fallback)
+- [ ] traffic_manager spawn/lane math off ns_road_cols hardcode (Cycle A interim: road-index cruise classes 13/9/5 m/s; **Cycle B: `road_lanes()` / `road_segments` now expose measured centre-lines, widths, classes, lane offsets and spans — consumer retune lands in Cycle C**)
+- [ ] pedestrian_manager walkable scan + archetype districts (scan verified <0.5 s at 320² and unchanged API in Cycle B; district archetypes Cycle C)
+- [x] procedural_gen full rewrite (v2) behind seed contract (Cycle B: arterial/collector/local hierarchy with jittered corridors, irregular blocks, center-out zoning, park transverses, harbor quay/piers/bollards, landmark lattice at 150–400 m spacing; deterministic byte-identical grids; 320² generation ≈25–40 ms)
 - [x] hud minimap zoom (fixed radius is useless at city scale) + distance readouts (Cycle A: `M` cycles OFF → NEAR 31 m → FAR 95 m auto-scaled radar)
-- [ ] landmark registry spacing + compass ranges
+- [ ] landmark registry spacing + compass ranges (Cycle B: spacing enforced ≥150 m pairwise, ≤400 m on the default map, true footprints recorded; compass ranges unchanged)
 - [x] vehicle_controller top speeds (m/s) + cockpit gauges (Cycle A: km/h readout, type tops 16/14/12/9 m/s)
-- [ ] tests: determinism, spawn safety, benchmark matrix (determinism + spawn safety + honesty suite landed in Cycle A, `tests/test_units_honesty.py`; CI benchmark matrix deferred — no CI change this cycle)
+- [ ] tests: determinism, spawn safety, benchmark matrix (determinism + spawn safety landed Cycle A; **Cycle B: `tests/test_generator_v2.py` adds hierarchy stats measured from floors grid, district height gradient, park/harbor presence, landmark spacing, road-connectivity BFS, interiors compatibility**; CI benchmark matrix deferred — no CI change this cycle)
 
 ## 7. Execution Plan (each = builder agents in worktrees → review gate → merge)
 1. **Cycle A — Honest Units**: camera/speeds/textures/map-size plumbing on existing layout. Playable checkpoint of the feel.

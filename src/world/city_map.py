@@ -11,7 +11,9 @@ from src.world.procedural_gen import (
     CityMapData,
     Landmark,
     RoadGraph,
+    RoadSegment,
     DistrictType,
+    build_road_lanes,
 )
 
 
@@ -99,6 +101,7 @@ class CityMap:
         self.street_names: Dict[int, str] = self._map_data.street_names
         self.landmarks: List[Landmark] = self._map_data.landmarks
         self.road_graph: RoadGraph = self._map_data.road_graph
+        self.road_segments: List[RoadSegment] = self._map_data.road_segments
         self.props = self._map_data.props
         self.spawn_pos: Tuple[float, float] = self._map_data.spawn_pos
 
@@ -204,6 +207,12 @@ class CityMap:
 
     def get_landmarks(self) -> List[Landmark]:
         return list(self.landmarks)
+
+    def road_lanes(self) -> List[dict]:
+        """Measured lane geometry for traffic spawning: one entry per road line
+        with axis, class (ARTERIAL/COLLECTOR/LOCAL), metre width, continuous
+        centre-line, right-hand lane offsets, and along-axis span."""
+        return build_road_lanes(self.road_segments)
 
     def render_ascii_map(self) -> str:
         return self.generator.render_ascii_overview(self._map_data)

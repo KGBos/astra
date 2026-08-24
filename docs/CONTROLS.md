@@ -1,5 +1,23 @@
 # Astra 3D Controls & Navigation Guide
 
+## 🏙️ Generator v2 — Life-Sized City (M5 Cycle B)
+The metropolis is no longer a uniform grid. **Arterials** (14 m, 40–56 m apart,
+center dashes marking the median) carry the skyline; **collectors** (9 m) fill
+corridors on a 16–24 m rhythm; **local lanes** (5 m) cut through blocks wider
+than 34 m. Downtown towers cluster within ~90 m of the map centre (podium
+storefronts with setback glass/neon cores), a midrise ring of brownstones,
+hotels and neon arcades reaches ~180 m, far quadrants go industrial with
+warehouse yards, and an **80+ m central park** sits east of the core with tree
+lawns and transverse avenues. The east edge is a **harbor front**: quay wall,
+wooden piers, mooring bollards and a marina landmark; NS roads bridge over the
+water. Eight landmarks with carved plazas are spaced 150–400 m apart for the `U`
+compass cycle.
+
+> [!WARNING]
+> **Breaking change:** Generator v2 changes the layout for every seed again
+> (seed format unchanged). Pre-Cycle-B seed bookmarks will not reproduce their
+> original cities.
+
 ## 📏 Honest Units (M5 Cycle A)
 The world is measured in true metres: **1 tile = 1 m**. Eye height is 1.7 m on foot
 (≈1.0 m seated in a vehicle), walking is 3.6 m/s, sprinting is 7.2 m/s, and a jump

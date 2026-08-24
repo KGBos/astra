@@ -77,11 +77,12 @@ class TestVehicleAndAudio(unittest.TestCase):
 
     def test_driving_wall_collision(self):
         self.vehicle_ctrl.enter_vehicle(self.vehicle, self.camera)
-        # Place vehicle directly in front of solid wall building
+        # Drive West into the always-solid perimeter wall (generator v2 leaves
+        # an open sidewalk fringe at x=1-2, so carry enough speed to reach it)
         self.vehicle.x = 2.5
         self.vehicle.y = 2.5
         self.vehicle_ctrl.heading_angle = math.pi  # facing West into perimeter wall
-        self.vehicle_ctrl.speed = 5.0
+        self.vehicle_ctrl.speed = 14.0
 
         collided = self.vehicle_ctrl.update_physics(
             dt=0.1,
