@@ -46,10 +46,14 @@
 | **M1** | Core raycasting engine, city, traffic, weather, HUD, game loop | ✅ Shipped (v0.4) |
 | **M2** | Driving mode, interiors, NPCs, radio | ✅ Shipped — merged via gate (`merge/m2-integration`) |
 | **M3** | Vehicle integration, cockpit HUD, procedural audio | ✅ Shipped — live in Game loop, mute-default audio |
-| **M4** | Far-skyline LOD, performance budget, missions layer | 🔶 Skyline LOD shipped; missions/perf-budget in backlog |
+| **M4** | Far-skyline LOD, performance budget | ✅ Shipped — two-tier skyline + 60 FPS @160×50 budget met (medians 196–446 FPS)
+| **M5** | Life-Sized World: 1 tile = 1m, generator v2, mega-map 320², lobbies, lane traffic | ✅ Shipped (v0.6) — spec docs/DESIGN_M5_LIFESIZE.md |
 
 ## 5. Verification Baseline
-- Suite: `python3 -m unittest discover -s tests` → 129 tests, all green
-- Benchmark: `python3 main.py --benchmark` → ~250 FPS @ 80×32 full feature set
+- Suite: `python3 -m unittest discover -s tests` → 200 tests, all green
+- Benchmarks: `python3 main.py --benchmark` ~450 FPS @80×32; `tools/bench_matrix.py` medians 446/237/196 FPS @ 80×32/120×40/160×50 (≥60 budget met)
 - Modes: `--no-fill`, `--no-color`, `--audio` documented in CONTROLS.md; purity asserted by tests
 - CI: GitHub Actions green across Python 3.8/3.10/3.12
+
+## 6. M5 Post-Mortem Note
+Life-sized world executed as three gated cycles (A honest units / B generator v2 / C density+perf) in `.worktrees/citylife`; every merge passed independent review (7 Required findings total across cycles, all closed with regression coverage). Seed-breaking change documented in README/CONTROLS.
