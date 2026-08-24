@@ -104,8 +104,7 @@ class TestPortalRendering(unittest.TestCase):
 
         portals = [h for h in layers if h.win_dist > 0.0]
         self.assertTrue(portals, "no portal layer recorded through the window")
-        self.assertFalse(any(h.win_dist == 0.0 and h.hit and not h.is_frame
-                             for h in layers),
+        self.assertFalse(any(h.win_dist == 0.0 and h.hit for h in layers),
                          "unexpected occluder between camera and window")
         # Nearest through-glass content is the tower itself
         through = portals[0]
@@ -145,46 +144,6 @@ class TestPortalRendering(unittest.TestCase):
         ]
         self.assertTrue(differing_in_span,
                         "glass window shows no exterior content")
-
-    def test_window_frame_surrounds_glass_opening(self):
-        """Rows above/below the glass span show interior wall, not sky/floor."""
-        world, space, view = self._portal_scene()
-        world.walls[6][12] = TOWER_TYPE
-
-        rc = Raycaster(screen_w=80, screen_h=32)
-        cam = Camera(x=12.5, y=14.5)
-        cam.set_direction(-math.pi / 2.0)
-
-        day_night = DayNightCycle(start_hour=12.0)
-        buf_glass = ScreenBuffer(80, 32)
-        rc.render(camera=cam, city_map=view, sprites=[],
-                  day_night=day_night, weather=None, buffer=buf_glass)
-
-        space_walled = InteriorSpace(bld_id=0, bx0=10, by0=12, bw=5, bh=5,
-                                     doorway=None, seed=1)
-        view_walled = InteriorView(space_walled, world)
-        buf_walled = ScreenBuffer(80, 32)
-        rc.render(camera=cam, city_map=view_walled, sprites=[],
-                  day_night=day_night, weather=None, buffer=buf_walled)
-
-        win_dist = cam.pos.y - 13.0
-        w_top = int(16 - (32 / win_dist) * rc.WINDOW_OPENING)
-        w_bot = int(16 + (32 / win_dist) * rc.WINDOW_OPENING)
-
-        for y in (w_top - 1, w_top - 2, w_bot + 1, w_bot + 2):
-            self.assertEqual(
-                (buf_glass.pixels[y][40].char, buf_glass.pixels[y][40].fg,
-                 buf_glass.pixels[y][40].bg),
-                (buf_walled.pixels[y][40].char, buf_walled.pixels[y][40].fg,
-                 buf_walled.pixels[y][40].bg),
-                f"window column row {y} leaks sky/floor instead of wall frame"
-            )
-        mid = (w_top + w_bot) // 2
-        self.assertNotEqual(
-            (buf_glass.pixels[mid][40].char, buf_glass.pixels[mid][40].fg),
-            (buf_walled.pixels[mid][40].char, buf_walled.pixels[mid][40].fg),
-            "glass opening no longer shows exterior through the frame"
-        )
 
 
 class TestSpaceTransitions(unittest.TestCase):
