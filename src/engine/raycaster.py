@@ -755,8 +755,8 @@ class Raycaster:
             face_chars, face_fg = spr.back_chars, spr.back_fg
         face_w = len(face_chars[0])
 
-        front_w = len(spr.front_chars[0])  # legacy footprint anchor
         side_w = len(spr.side_chars[0])
+        front_w = len(spr.front_chars[0])  # legacy footprint anchor
         rows = max(len(face_chars), len(spr.side_chars))
 
         # Full-face view must match the legacy flat billboard footprint
