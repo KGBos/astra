@@ -205,8 +205,8 @@ class ProceduralCityGenerator:
     def generate(
         self,
         seed: Optional[Union[int, str]] = None,
-        width: int = 42,
-        height: int = 42,
+        width: int = 320,
+        height: int = 320,
         preset: str = "DEFAULT"
     ) -> CityMapData:
         """
@@ -350,7 +350,7 @@ class ProceduralCityGenerator:
         self._finalize_landmarks(landmarks, districts, width, height, rng)
 
         # 10. Determine safe player spawn position
-        spawn_pos = self._find_safe_spawn_pos(width, height, floors, walls, rng)
+        spawn_pos = self._find_safe_spawn_pos(width, height, floors, walls, ns_road_cols)
 
         return CityMapData(
             width=width,
@@ -622,20 +622,23 @@ class ProceduralCityGenerator:
             description="Heavy freight and automated logistics depot."
         ))
 
+    MAX_SPAWN_SCAN_RADIUS = 24
+
     def _find_safe_spawn_pos(
         self,
         width: int,
         height: int,
         floors: List[List[int]],
         walls: List[List[int]],
-        rng: random.Random
+        ns_road_cols: List[int]
     ) -> Tuple[float, float]:
-        """Finds a safe non-solid coordinate near the center for player spawn."""
+        """Finds a safe non-solid coordinate near the center, capped-radius
+        spiral first, then an avenue-column fallback (keeps 320x320 scans O(1)
+        instead of pathological full-grid spirals)."""
         mid_x = width // 2
         mid_y = height // 2
 
-        # Check spiral around center
-        for radius in range(0, max(width, height)):
+        for radius in range(self.MAX_SPAWN_SCAN_RADIUS + 1):
             for dy in range(-radius, radius + 1):
                 for dx in range(-radius, radius + 1):
                     x = mid_x + dx
@@ -643,6 +646,11 @@ class ProceduralCityGenerator:
                     if 1 <= x < width - 1 and 1 <= y < height - 1:
                         if walls[y][x] == 0 and floors[y][x] != 7:  # Not wall, not water
                             return (float(x) + 0.5, float(y) + 0.5)
+
+        for col in ns_road_cols:
+            probe_y = min(height - 2, max(1, mid_y))
+            if walls[probe_y][col] == 0 and floors[probe_y][col] != 7:
+                return (float(col) + 0.5, float(probe_y) + 0.5)
 
         return (4.5, 4.5)
 

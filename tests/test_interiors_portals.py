@@ -9,7 +9,7 @@ import math
 import unittest
 
 from src.engine.camera import Camera
-from src.engine.raycaster import Raycaster
+from src.engine.raycaster import Raycaster, pixels_per_meter_at_1m
 from src.world.city_map import CityMap
 from src.world.day_night import DayNightCycle
 from src.world.interiors import (
@@ -24,6 +24,14 @@ from src.game import Game
 from src.renderer.screen_buffer import ScreenBuffer
 
 TOWER_TYPE = 2
+
+
+def _window_span(cam, win_dist, screen_w=80, screen_h=32):
+    """Projected glass-opening rows: honest metres via the FOV-derived focal length."""
+    ppm = pixels_per_meter_at_1m(screen_w, screen_h, cam.plane.length())
+    horizon = int(screen_h / 2.0)
+    return (int(horizon - (ppm * Raycaster.WINDOW_HALF_HEIGHT_M) / win_dist),
+            int(horizon + (ppm * Raycaster.WINDOW_HALF_HEIGHT_M) / win_dist))
 
 
 class TestDoorwayDetection(unittest.TestCase):
@@ -136,8 +144,7 @@ class TestPortalRendering(unittest.TestCase):
                   day_night=day_night, weather=None, buffer=buf_walled)
 
         win_dist = abs(12.0 - cam.pos.y)                # window plane at y=12
-        half = int((32 / win_dist) * rc.WINDOW_OPENING)
-        w_top, w_bot = int(16 - half), int(16 + half)
+        w_top, w_bot = _window_span(cam, win_dist)
 
         differing_in_span = [
             y for y in range(max(0, w_top), min(31, w_bot) + 1)
@@ -153,7 +160,7 @@ class TestPortalRendering(unittest.TestCase):
         world.walls[6][12] = TOWER_TYPE
 
         rc = Raycaster(screen_w=80, screen_h=32)
-        cam = Camera(x=12.5, y=14.5)
+        cam = Camera(x=12.5, y=15.4)
         cam.set_direction(-math.pi / 2.0)
 
         day_night = DayNightCycle(start_hour=12.0)
@@ -170,8 +177,7 @@ class TestPortalRendering(unittest.TestCase):
                   day_night=day_night, weather=None, buffer=buf_walled)
 
         win_dist = cam.pos.y - 13.0                     # near face of cell (12, 12)
-        w_top = int(16 - (32 / win_dist) * rc.WINDOW_OPENING)
-        w_bot = int(16 + (32 / win_dist) * rc.WINDOW_OPENING)
+        w_top, w_bot = _window_span(cam, win_dist)
 
         for y in (w_top - 1, w_top - 2, w_bot + 1, w_bot + 2):
             self.assertEqual(

@@ -69,13 +69,26 @@ python3 -m unittest discover -s tests
 | `W` / `A` / `S` / `D` | Move Forward / Strafe Left / Move Back / Strafe Right |
 | `Q` / `E` or `←` / `→` | Turn Left / Turn Right |
 | `I` / `K` | Pitch View Up / Down |
-| `Shift + W` | Sprint |
-| `Space` | Jump |
-| `M` | Toggle Mini-Map GPS Radar |
+| `Shift + W` | Sprint (2× speed, 7.2 m/s) |
+| `Space` | Jump (~1 m clearance) |
+| `M` | Cycle Mini-Map GPS Radar (OFF → NEAR 31 m → FAR 95 m) |
 | `T` | Skip Time of Day (Day / Sunset / Night) |
 | `R` | Toggle Weather (Clear / Rain / Fog) |
 | `H` | Honk Horn |
 | `Esc` / `X` | Exit |
+
+---
+
+## 🌆 Life-Sized World (M5)
+
+The city is now a **320×320 m metropolis measured in honest metres**: your eye is
+1.7 m above the sidewalk, walking pace is 3.6 m/s, brownstones stand ~11 m tall and
+downtown glass towers reach 40–60 m over true 2 m traffic lanes.
+
+> [!NOTE]
+> **Seed breaking change (M5 Cycle A):** existing seeds no longer reproduce their
+> pre-M5 layouts. The seed format is unchanged — the same number simply synthesizes
+> a different (much bigger) city than it did before M5.
 
 ---
 

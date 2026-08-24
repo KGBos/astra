@@ -20,6 +20,11 @@ class Sprite:
         vertical_offset: float = 0.0,
         is_luminous: bool = False
     ):
+        """
+        scale_x / scale_y are metres per art column / art row, so a sprite's
+        world size is always (scale_x * width, scale_y * height) in metres;
+        vertical_offset lifts the base off the ground in metres.
+        """
         self.x = float(x)
         self.y = float(y)
         self.name = name
@@ -55,7 +60,7 @@ def make_streetlamp_sprite(x: float, y: float) -> Sprite:
         [(150, 150, 160) for _ in range(5)],
         [(100, 100, 110) for _ in range(5)]
     ]
-    return Sprite(x, y, "STREETLAMP", chars, fg, scale_x=0.6, scale_y=0.9, is_luminous=True)
+    return Sprite(x, y, "STREETLAMP", chars, fg, scale_x=0.2, scale_y=1.5, is_luminous=True)
 
 
 def make_tree_sprite(x: float, y: float) -> Sprite:
@@ -71,7 +76,7 @@ def make_tree_sprite(x: float, y: float) -> Sprite:
         [(35, 130, 50) for _ in range(7)],
         [(120, 80, 50) for _ in range(7)]
     ]
-    return Sprite(x, y, "TREE", chars, fg, scale_x=0.9, scale_y=0.9)
+    return Sprite(x, y, "TREE", chars, fg, scale_x=0.57, scale_y=2.25)
 
 
 def make_fire_hydrant_sprite(x: float, y: float) -> Sprite:
@@ -85,7 +90,7 @@ def make_fire_hydrant_sprite(x: float, y: float) -> Sprite:
         [(240, 40, 30) for _ in range(5)],
         [(200, 30, 20) for _ in range(5)]
     ]
-    return Sprite(x, y, "HYDRANT", chars, fg, scale_x=0.4, scale_y=0.4)
+    return Sprite(x, y, "HYDRANT", chars, fg, scale_x=0.08, scale_y=0.25)
 
 
 def make_park_bench_sprite(x: float, y: float) -> Sprite:
@@ -99,7 +104,7 @@ def make_park_bench_sprite(x: float, y: float) -> Sprite:
         [(140, 90, 50) for _ in range(8)],
         [(80, 80, 90) for _ in range(8)]
     ]
-    return Sprite(x, y, "BENCH", chars, fg, scale_x=0.7, scale_y=0.4)
+    return Sprite(x, y, "BENCH", chars, fg, scale_x=0.225, scale_y=0.3)
 
 
 def make_fountain_sprite(x: float, y: float) -> Sprite:
@@ -115,7 +120,7 @@ def make_fountain_sprite(x: float, y: float) -> Sprite:
         [(60, 180, 240) for _ in range(7)],
         [(180, 190, 200) for _ in range(7)]
     ]
-    return Sprite(x, y, "FOUNTAIN", chars, fg, scale_x=0.8, scale_y=0.7, is_luminous=True)
+    return Sprite(x, y, "FOUNTAIN", chars, fg, scale_x=0.43, scale_y=0.62, is_luminous=True)
 
 
 def make_monument_obelisk_sprite(x: float, y: float) -> Sprite:
@@ -133,7 +138,7 @@ def make_monument_obelisk_sprite(x: float, y: float) -> Sprite:
         [(180, 180, 210) for _ in range(6)],
         [(100, 110, 130) for _ in range(6)]
     ]
-    return Sprite(x, y, "OBELISK", chars, fg, scale_x=0.7, scale_y=1.2, is_luminous=True)
+    return Sprite(x, y, "OBELISK", chars, fg, scale_x=0.33, scale_y=2.4, is_luminous=True)
 
 
 def make_dumpster_sprite(x: float, y: float) -> Sprite:
@@ -149,7 +154,7 @@ def make_dumpster_sprite(x: float, y: float) -> Sprite:
         [(60, 100, 70) for _ in range(9)],
         [(40, 40, 45) for _ in range(9)]
     ]
-    return Sprite(x, y, "DUMPSTER", chars, fg, scale_x=0.8, scale_y=0.6)
+    return Sprite(x, y, "DUMPSTER", chars, fg, scale_x=0.18, scale_y=0.35)
 
 
 def make_neon_signpost_sprite(x: float, y: float, text: str = "NEON") -> Sprite:
@@ -166,7 +171,7 @@ def make_neon_signpost_sprite(x: float, y: float, text: str = "NEON") -> Sprite:
         [(120, 120, 130) for _ in range(6)],
         [(80, 80, 90) for _ in range(6)]
     ]
-    return Sprite(x, y, "NEON_SIGN", chars, fg, scale_x=0.6, scale_y=0.8, is_luminous=True)
+    return Sprite(x, y, "NEON_SIGN", chars, fg, scale_x=0.13, scale_y=0.75, is_luminous=True)
 
 
 def make_crate_stack_sprite(x: float, y: float) -> Sprite:
@@ -180,7 +185,7 @@ def make_crate_stack_sprite(x: float, y: float) -> Sprite:
         [(180, 120, 60) for _ in range(6)],
         [(160, 100, 50) for _ in range(6)]
     ]
-    return Sprite(x, y, "CRATES", chars, fg, scale_x=0.6, scale_y=0.5)
+    return Sprite(x, y, "CRATES", chars, fg, scale_x=0.15, scale_y=0.4)
 
 
 def make_bollard_sprite(x: float, y: float) -> Sprite:
@@ -194,7 +199,7 @@ def make_bollard_sprite(x: float, y: float) -> Sprite:
         [(160, 160, 170) for _ in range(3)],
         [(90, 90, 100) for _ in range(3)]
     ]
-    return Sprite(x, y, "BOLLARD", chars, fg, scale_x=0.3, scale_y=0.4)
+    return Sprite(x, y, "BOLLARD", chars, fg, scale_x=0.1, scale_y=0.33)
 
 
 
@@ -304,6 +309,6 @@ def make_vending_machine_sprite(x: float, y: float, facing_angle: float = 0.0) -
         front_chars, front_fg,
         side_chars, side_fg,
         facing_angle=facing_angle,
-        scale_x=0.55, scale_y=0.55,
+        scale_x=1.0, scale_y=0.45,
         is_luminous=True
     )

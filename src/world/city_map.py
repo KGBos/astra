@@ -72,8 +72,8 @@ class CityMap:
 
     def __init__(
         self,
-        width: int = 42,
-        height: int = 42,
+        width: int = 320,
+        height: int = 320,
         seed: Optional[Union[int, str]] = None,
         preset: str = "DEFAULT"
     ):
@@ -135,8 +135,8 @@ class CityMap:
     def from_seed(
         cls,
         seed: Union[int, str],
-        width: int = 42,
-        height: int = 42,
+        width: int = 320,
+        height: int = 320,
         preset: str = "DEFAULT"
     ) -> 'CityMap':
         return cls(width=width, height=height, seed=seed, preset=preset)

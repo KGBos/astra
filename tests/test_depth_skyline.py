@@ -9,17 +9,20 @@ import math
 import unittest
 
 from src.engine.camera import Camera
-from src.engine.raycaster import Raycaster
+from src.engine.raycaster import Raycaster, pixels_per_meter_at_1m
 from src.engine.math3d import RayHit
 from src.world.city_map import CityMap
 from src.world.day_night import DayNightCycle
+from src.world.textures import get_texture
 from src.entities.sprite import Sprite
 from src.renderer.screen_buffer import ScreenBuffer
 
 
-ARCLOGY_TYPE = 7     # height_mult 3.5
-WAREHOUSE_TYPE = 5   # height_mult 1.0
-TOWER_TYPE = 2       # height_mult 3.2
+ARCLOGY_TYPE = 7     # height_mult 50.0 m
+WAREHOUSE_TYPE = 5   # height_mult 9.0 m
+TOWER_TYPE = 1       # height_mult 40.0 m (glass)
+NEON_TYPE = 2        # height_mult 60.0 m (neon)
+SHORT_TYPE = 4       # height_mult 4.0 m
 
 
 def _empty_walls(size):
@@ -36,7 +39,7 @@ class _Scene:
     def short_building(self, x0, x1, y0, y1):
         for y in range(y0, y1 + 1):
             for x in range(x0, x1 + 1):
-                self.city_map.walls[y][x] = WAREHOUSE_TYPE
+                self.city_map.walls[y][x] = SHORT_TYPE
 
     def tower(self, x0, x1, y0, y1, wtype=TOWER_TYPE):
         for y in range(y0, y1 + 1):
@@ -58,11 +61,11 @@ class TestDepthLayerOverlap(unittest.TestCase):
         self.center_col = 40
 
     def test_two_structures_yield_two_layers(self):
-        self.scene.short_building(9, 11, 12, 13)
+        self.scene.short_building(9, 11, 14, 15)
         self.scene.tower(8, 12, 20, 24)
         layers = self.rc._cast_ray_layers(self.center_col, self.camera, self.scene.city_map)
         self.assertGreaterEqual(len(layers), 2)
-        self.assertEqual(layers[0].wall_type, WAREHOUSE_TYPE)
+        self.assertEqual(layers[0].wall_type, SHORT_TYPE)
         self.assertEqual(layers[1].wall_type, TOWER_TYPE)
         for a, b in zip(layers, layers[1:]):
             self.assertLess(a.perp_wall_dist, b.perp_wall_dist)
@@ -71,14 +74,13 @@ class TestDepthLayerOverlap(unittest.TestCase):
         self.scene.short_building(9, 11, 12, 13)
         self.scene.short_building(9, 11, 16, 18)
         layers = self.rc._cast_ray_layers(self.center_col, self.camera, self.scene.city_map)
-        self.assertEqual(len([h for h in layers if not h.is_far and h.wall_type == WAREHOUSE_TYPE]), 1)
+        self.assertEqual(len([h for h in layers if not h.is_far and h.wall_type == SHORT_TYPE]), 1)
 
     def test_tall_layer_rises_above_short_roofline(self):
-        self.scene.short_building(9, 11, 12, 13)
+        self.scene.short_building(9, 11, 14, 15)
         self.scene.tower(8, 12, 17, 22)
         scene_without_tower = _Scene()
-        scene_without_tower.short_building(9, 11, 12, 13)
-
+        scene_without_tower.short_building(9, 11, 14, 15)
         day_night = DayNightCycle(start_hour=12.0)
         buf_with = ScreenBuffer(80, 32)
         buf_without = ScreenBuffer(80, 32)
@@ -87,10 +89,11 @@ class TestDepthLayerOverlap(unittest.TestCase):
         self.rc.render(camera=self.camera, city_map=scene_without_tower.city_map,
                        sprites=[], day_night=day_night, buffer=buf_without)
 
-        perp_near = 12.0 - self.camera.pos.y
-        line_h = int((32 / perp_near) * 1.0)
+        perp_near = 14.0 - self.camera.pos.y
+        ppm = pixels_per_meter_at_1m(80, 32, self.camera.plane.length())
+        short_h = get_texture(SHORT_TYPE).height_mult
         horizon = int(32 / 2.0)
-        roof_row = int(horizon - line_h / 2.0)
+        roof_row = int(horizon - ppm * (short_h - self.camera.eye_m) / perp_near)
 
         differing_above_roof = [
             y for y in range(0, max(0, roof_row))
@@ -115,7 +118,7 @@ class TestDepthLayerOverlap(unittest.TestCase):
         hit = self.rc._cast_ray(self.center_col, self.camera, self.scene.city_map)
         self.assertIsInstance(hit, RayHit)
         self.assertTrue(hit.hit)
-        self.assertEqual(hit.wall_type, WAREHOUSE_TYPE)
+        self.assertEqual(hit.wall_type, SHORT_TYPE)
 
 
 class TestTwoTierDrawDistance(unittest.TestCase):
@@ -136,9 +139,9 @@ class TestTwoTierDrawDistance(unittest.TestCase):
         self.assertEqual(layers[-1], far_hits[0])
 
     def test_near_hit_suppresses_redundant_far_scan(self):
-        self.scene.short_building(9, 11, 12, 13)
-        self.scene.tower(8, 12, 16, 18)
-        self.scene.tower(8, 12, 22, 26, ARCLOGY_TYPE)
+        self.scene.short_building(9, 11, 15, 16)
+        self.scene.tower(8, 12, 19, 21, TOWER_TYPE)
+        self.scene.tower(8, 12, 25, 29, NEON_TYPE)
         layers = self.rc._cast_ray_layers(self.center_col, self.camera, self.scene.city_map)
         self.assertEqual(len(layers), self.rc.MAX_LAYERS)
         self.assertFalse(any(h.is_far for h in layers))
@@ -172,10 +175,10 @@ class TestNightCitySkyline(unittest.TestCase):
     """Night City profile: towers loom, downtown favors neon masses."""
 
     def test_tower_heights_loom_over_low_districts(self):
-        from src.world.textures import get_texture
-        self.assertGreaterEqual(get_texture(TOWER_TYPE).height_mult, 6.5)      # neon tower
-        self.assertGreaterEqual(get_texture(ARCLOGY_TYPE).height_mult, 7.5)    # arcology
-        self.assertLess(get_texture(WAREHOUSE_TYPE).height_mult, 1.5)          # low docks
+        self.assertGreaterEqual(get_texture(TOWER_TYPE).height_mult, 30.0)     # glass tower band
+        self.assertGreaterEqual(get_texture(NEON_TYPE).height_mult, 30.0)      # neon tower band
+        self.assertGreaterEqual(get_texture(ARCLOGY_TYPE).height_mult, 40.0)   # arcology
+        self.assertLess(get_texture(WAREHOUSE_TYPE).height_mult, 10.0)         # low docks
 
     def test_downtown_blocks_favor_tall_types(self):
         """Across seeds, downtown blocks are mostly tower-class wall types."""

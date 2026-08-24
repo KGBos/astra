@@ -16,12 +16,28 @@ from src.renderer.screen_buffer import ScreenBuffer
 
 
 class HUD:
+    RADAR_MODES = ("OFF", "NEAR", "FAR")
+    RADAR_RANGE_M = {1: 31.0, 2: 95.0}
+
     def __init__(self, show_minimap: bool = True):
+        self.minimap_mode = 1 if show_minimap else 0
         self.show_minimap = show_minimap
         self.notification_msg = "WELCOME TO ASTRA 3D // CITY EXPLORER"
         self.notification_timer = 5.0
         self.flashlight_on = False
         self.interaction_prompt: Optional[str] = None
+
+    def cycle_minimap(self) -> str:
+        """Cycles radar OFF -> NEAR (31 m) -> FAR (95 m); returns the status message."""
+        self.minimap_mode = (self.minimap_mode + 1) % len(self.RADAR_MODES)
+        self.show_minimap = self.minimap_mode != 0
+        mode = self.RADAR_MODES[self.minimap_mode]
+        if mode == "OFF":
+            msg = "GPS RADAR: OFF"
+        else:
+            msg = f"GPS RADAR: {mode} ({int(self.RADAR_RANGE_M[self.minimap_mode])} M RANGE)"
+        self.set_notification(msg)
+        return msg
 
     def set_notification(self, msg: str, duration: float = 3.0):
         self.notification_msg = msg
@@ -146,10 +162,10 @@ class HUD:
 
         # 8. Bottom Navigation & Status Bar (driving mode swaps in trip data)
         if driving:
-            mph = int(abs(vehicle_ctrl.speed) * 12.0)
+            kmh = int(abs(vehicle_ctrl.speed) * 3.6)
             nitro_bars = "█" * int(vehicle_ctrl.nitro_meter / 10.0)
             v_name = vehicle_ctrl.current_vehicle.vtype.value if vehicle_ctrl.current_vehicle else "CAR"
-            bot_left = f" 🏎 [{v_name}] {mph:3d} MPH │ NITRO: [{nitro_bars:<10}]"
+            bot_left = f" 🏎 [{v_name}] {kmh:3d} KM/H │ NITRO: [{nitro_bars:<10}]"
             bot_right = "[W] Accel │ [S] Brake │ [A/D] Steer │ [Shift+W] Nitro │ [L] Lights │ [H] Horn │ [G] Radio │ [F] Exit "
         else:
             speed_gauge = "█" * int(min(10, (camera.move_speed * (camera.sprint_mult if camera.is_jumping or camera.bob_amount > 0 else 1.0))))
@@ -213,23 +229,27 @@ class HUD:
         map_x = buffer.width - map_w - 2
         map_y = 2
 
-        buffer.draw_box(map_x, map_y, map_w, map_h, (0, 200, 255), (10, 15, 25), "GPS RADAR")
+        range_label = self.RADAR_MODES[self.minimap_mode]
+        buffer.draw_box(map_x, map_y, map_w, map_h, (0, 200, 255), (10, 15, 25), f"GPS {range_label}")
 
         radar_radius_x = (map_w - 2) // 2
         radar_radius_y = (map_h - 2) // 2
         center_screen_x = map_x + 1 + radar_radius_x
         center_screen_y = map_y + 1 + radar_radius_y
 
-        cam_ix = int(camera.pos.x)
-        cam_iy = int(camera.pos.y)
+        range_m = self.RADAR_RANGE_M.get(self.minimap_mode, self.RADAR_RANGE_M[1])
+        step = range_m / float(map_w - 2)
+
+        cam_x = camera.pos.x
+        cam_y = camera.pos.y
 
         # Enterable building thresholds get their own blip color
         doorway_cells = {(d.ext[0], d.ext[1]) for d in getattr(city_map, 'doorways', ())}
 
         for dy in range(-radar_radius_y, radar_radius_y + 1):
             for dx in range(-radar_radius_x, radar_radius_x + 1):
-                wx = cam_ix + dx
-                wy = cam_iy + dy
+                wx = int(cam_x + dx * step)
+                wy = int(cam_y + dy * step)
                 sx = center_screen_x + dx
                 sy = center_screen_y + dy
 
@@ -251,17 +271,25 @@ class HUD:
 
         # Draw Landmark blips on radar
         for lm in city_map.landmarks:
-            ldx = int(lm.x - camera.pos.x)
-            ldy = int(lm.y - camera.pos.y)
+            ldx = int(round((lm.x - cam_x) / step))
+            ldy = int(round((lm.y - cam_y) / step))
             if -radar_radius_x <= ldx <= radar_radius_x and -radar_radius_y <= ldy <= radar_radius_y:
                 blip_x = center_screen_x + ldx
                 blip_y = center_screen_y + ldy
                 buffer.set_pixel(blip_x, blip_y, '★', (255, 220, 50), (10, 15, 25))
 
         # Draw vehicle / pedestrian / sprite blips on radar
+        range_x = radar_radius_x + 1.0
+        range_y = radar_radius_y + 1.0
         for spr in sprites:
-            sdx = int(spr.x - camera.pos.x)
-            sdy = int(spr.y - camera.pos.y)
+            fdx = (spr.x - cam_x) / step
+            if fdx < -range_x or fdx > range_x:
+                continue
+            fdy = (spr.y - cam_y) / step
+            if fdy < -range_y or fdy > range_y:
+                continue
+            sdx = int(round(fdx))
+            sdy = int(round(fdy))
             if -radar_radius_x <= sdx <= radar_radius_x and -radar_radius_y <= sdy <= radar_radius_y:
                 blip_x = center_screen_x + sdx
                 blip_y = center_screen_y + sdy

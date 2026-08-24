@@ -3,7 +3,6 @@ Dynamic Vehicle physics, traffic AI, and directional 3D ASCII sprites for Astra 
 """
 
 import math
-import random
 from enum import Enum
 from typing import List, Tuple
 from src.entities.sprite import Sprite, VolumetricSprite
@@ -17,13 +16,47 @@ class VehicleType(Enum):
     BUS = "BUS"
 
 
+ARTERIAL_CRUISE = 13.0
+COLLECTOR_CRUISE = 9.0
+ALLEY_CRUISE = 5.0
+
+
+def cruise_speed_for(city_map, x: float, y: float, heading_dir: Tuple[int, int]) -> float:
+    """Cruise speed in m/s for the road a vehicle occupies.
+
+    Road hierarchy is approximated from the uniform grid until Generator v2:
+    every fourth avenue/street is an arterial (13 m/s), every second of the
+    rest a collector (9 m/s), and the remainder alleys (5 m/s).
+    """
+    dx, dy = heading_dir
+    if dy != 0:
+        coords = getattr(city_map, 'ns_road_cols', [])
+        coord = int(x)
+    else:
+        coords = getattr(city_map, 'ew_road_rows', [])
+        coord = int(y)
+    if not coords:
+        return COLLECTOR_CRUISE
+    idx = 0
+    for i, c in enumerate(coords):
+        if c <= coord:
+            idx = i
+        else:
+            break
+    if idx % 4 == 0:
+        return ARTERIAL_CRUISE
+    if idx % 2 == 0:
+        return COLLECTOR_CRUISE
+    return ALLEY_CRUISE
+
+
 class Vehicle:
     def __init__(self, x: float, y: float, vtype: VehicleType, heading_dir: Tuple[int, int]):
         self.x = float(x)
         self.y = float(y)
         self.vtype = vtype
         self.dx, self.dy = heading_dir  # (1, 0), (-1, 0), (0, 1), (0, -1)
-        self.speed = random.uniform(2.5, 4.0)
+        self.speed = COLLECTOR_CRUISE
         self.target_speed = self.speed
         self.current_speed = self.speed
         self.stopped = False
@@ -39,8 +72,10 @@ class Vehicle:
     def update(self, dt: float, city_map, other_vehicles: List['Vehicle']):
         self.siren_tick += dt * 8.0
 
-        # 1. Look ahead for traffic light or another vehicle
-        ahead_dist = 1.6
+        # 1. Look ahead for traffic light or another vehicle (sight distance
+        # scales with speed so higher m/s cruise speeds can still stop in time)
+        ahead_dist = max(2.0, self.current_speed * 1.2)
+        follow_dist = max(2.0, self.current_speed * 0.6 + 1.0)
         look_x = self.x + self.dx * ahead_dist
         look_y = self.y + self.dy * ahead_dist
         look_grid = (int(look_x), int(look_y))
@@ -59,7 +94,7 @@ class Vehicle:
             if other is self:
                 continue
             dist_to_other = math.hypot(other.x - self.x, other.y - self.y)
-            if dist_to_other < 2.0:
+            if dist_to_other < follow_dist:
                 # Check if other is ahead in our travel direction
                 rel_x = other.x - self.x
                 rel_y = other.y - self.y
@@ -152,7 +187,8 @@ class Vehicle:
             front_chars, front_fg,
             side_chars, side_fg,
             facing_angle=facing_angle,
-            scale_x=0.75, scale_y=0.5,
+            scale_x=2.2,
+            scale_y=0.375,
             is_luminous=True,
             back_chars=back_chars, back_fg=back_fg,
             corner_smooth=True

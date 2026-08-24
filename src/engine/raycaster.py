@@ -25,6 +25,21 @@ def _blend_color(c1: Tuple[int, int, int], c2: Tuple[int, int, int], factor: flo
     )
 
 
+CELL_ASPECT = 0.5
+
+
+def pixels_per_meter_at_1m(screen_w: int, screen_h: int, plane_len: float) -> float:
+    """Vertical focal length in character rows per world metre at 1 m distance.
+
+    Derives the vertical FOV from the horizontal raycaster plane so the
+    projection stays aspect-correct: tan(fov_v / 2) equals plane_len scaled
+    by the pixel height/width ratio, and the ~1:2 terminal cell shape folds
+    into CELL_ASPECT, giving PPM_1M = (H / 2) / tan(fov_v / 2).
+    """
+    tan_half_fov_v = plane_len * screen_h / (CELL_ASPECT * float(screen_w))
+    return (screen_h / 2.0) / max(1e-6, tan_half_fov_v)
+
+
 class Raycaster:
     # Two-tier draw distance: detailed DDA in the near field, coarse parametric
     # sampling for the far skyline; plus depth-layer stacking so rays see past
@@ -33,7 +48,7 @@ class Raycaster:
     NEAR_STEPS = 18       # detailed cell-by-cell DDA budget (near tier)
     FAR_MAX_DIST = 60.0   # world units scanned by the far tier (skyline range)
     FAR_STRIDE = 1.5      # far-tier sampling step along the ray
-    WINDOW_OPENING = 0.30 # half-height of the glass opening as slice fraction
+    WINDOW_HALF_HEIGHT_M = 1.0  # glass opening half-height in metres (2 m band)
 
     def __init__(self, screen_w: int = 80, screen_h: int = 32):
         self.width = screen_w
@@ -65,8 +80,11 @@ class Raycaster:
         # Modulate ambient with lightning flash
         ambient = clamp(base_ambient * (1.0 + lightning_intensity * 2.8), 0.1, 2.0)
 
-        # Camera horizon with pitch and eye height offset
-        horizon_y = int(self.height / 2.0 + camera.pitch + (camera.eye_height - 0.5) * 8.0 + camera.bob_amount * self.height)
+        ppm = pixels_per_meter_at_1m(self.width, self.height, camera.plane.length())
+
+        # Camera horizon with pitch and head-bob offset; true eye height now
+        # enters through the wall/sprite/floor projections instead of a horizon shift
+        horizon_y = int(self.height / 2.0 + camera.pitch + camera.bob_amount * self.height)
 
         # 1. Render Sky (Ceiling) & Floor Background Slices
         self._render_sky_and_floor(
@@ -80,12 +98,13 @@ class Raycaster:
             ambient=base_ambient,
             lightning_intensity=lightning_intensity,
             lightning_col=lightning_col,
+            ppm=ppm,
             buffer=buffer
         )
 
         # 2. Raycast Walls & Record Z-Buffer (multi-layer, far-to-near paint)
         for x in range(self.width):
-            layers = self._cast_ray_layers(x, camera, city_map, horizon_y)
+            layers = self._cast_ray_layers(x, camera, city_map, horizon_y, ppm)
             if layers and layers[0].hit:
                 self.z_buffer[x] = layers[0].perp_wall_dist
                 wall_layers = [h for h in layers if h.win_dist == 0.0]
@@ -101,14 +120,15 @@ class Raycaster:
                         ambient=ambient,
                         weather=weather,
                         flashlight_on=flashlight_on,
-                        buffer=buffer
+                        buffer=buffer,
+                        ppm=ppm
                     )
 
                 if portal_layers:
                     # Live-window portals: exterior world seen through the
                     # glass opening, painted far-to-near inside the span
                     win_dist = portal_layers[0].win_dist
-                    w_half = (self.height / win_dist) * self.WINDOW_OPENING
+                    w_half = (ppm * self.WINDOW_HALF_HEIGHT_M) / win_dist
                     w_top = int(horizon_y - w_half)
                     w_bot = int(horizon_y + w_half)
                     for hit in reversed(portal_layers):
@@ -126,7 +146,7 @@ class Raycaster:
                 elif layers[-1].win_dist > 0.0 and not layers[-1].hit:
                     # Window crossed with nothing solid beyond: open sky through glass
                     win_dist = layers[-1].win_dist
-                    w_half = (self.height / win_dist) * self.WINDOW_OPENING
+                    w_half = (ppm * self.WINDOW_HALF_HEIGHT_M) / win_dist
                     self._draw_sky_span(
                         screen_x=x,
                         y0=int(horizon_y - w_half),
@@ -144,7 +164,7 @@ class Raycaster:
                 if layers and not layers[0].hit and layers[0].win_dist > 0.0:
                     # Window with nothing solid beyond: open sky through glass
                     win_dist = layers[0].win_dist
-                    w_half = (self.height / win_dist) * self.WINDOW_OPENING
+                    w_half = (ppm * self.WINDOW_HALF_HEIGHT_M) / win_dist
                     self._draw_sky_span(
                         screen_x=x,
                         y0=int(horizon_y - w_half),
@@ -165,7 +185,8 @@ class Raycaster:
             horizon_y=horizon_y,
             ambient=ambient,
             weather=weather,
-            buffer=buffer
+            buffer=buffer,
+            ppm=ppm
         )
 
     def _cast_ray(self, screen_x: int, camera: Camera, city_map: CityMap) -> RayHit:
@@ -179,7 +200,8 @@ class Raycaster:
                       camera.dir.y + camera.plane.y * camera_x)
 
     def _cast_ray_layers(self, screen_x: int, camera: Camera, city_map: CityMap,
-                         horizon_y: Optional[int] = None) -> List[RayHit]:
+                         horizon_y: Optional[int] = None,
+                         ppm: Optional[float] = None) -> List[RayHit]:
         """
         Casts one column ray and records up to MAX_LAYERS wall hits near-to-far.
 
@@ -201,6 +223,9 @@ class Raycaster:
         camera_x = 2.0 * screen_x / float(self.width) - 1.0
         ray_dir_x = camera.dir.x + camera.plane.x * camera_x
         ray_dir_y = camera.dir.y + camera.plane.y * camera_x
+
+        if ppm is None:
+            ppm = pixels_per_meter_at_1m(self.width, self.height, camera.plane.length())
 
         map_x = int(camera.pos.x)
         map_y = int(camera.pos.y)
@@ -294,8 +319,8 @@ class Raycaster:
                 wall_x -= math.floor(wall_x)
                 layers.append(make_hit(map_x, map_y, side, perp, wall_x, wall_type))
                 if horizon_y is not None and len(layers) == 1 and window_dist == 0.0:
-                    line_h = (self.height / perp) * wall_h
-                    covered_top = (horizon_y - line_h / 2.0) <= 0.0
+                    roofline_row = horizon_y - (ppm / perp) * (wall_h - camera.eye_m)
+                    covered_top = roofline_row <= 0.0
                 if covered_top or len(layers) - frame_count >= self.MAX_LAYERS:
                     return layers
 
@@ -380,13 +405,16 @@ class Raycaster:
         weather: Optional[WeatherSystem],
         flashlight_on: bool,
         buffer: ScreenBuffer,
-        clip: Optional[Tuple[int, int]] = None
+        clip: Optional[Tuple[int, int]] = None,
+        ppm: Optional[float] = None
     ):
         texture = get_texture(hit.wall_type)
-        line_height = int((self.height / hit.perp_wall_dist) * hit.wall_height)
-        
-        draw_start = int(horizon_y - line_height / 2.0)
-        draw_end = int(horizon_y + line_height / 2.0)
+        if ppm is None:
+            ppm = pixels_per_meter_at_1m(self.width, self.height, camera.plane.length())
+
+        rows_per_m = ppm / hit.perp_wall_dist
+        draw_end = int(horizon_y + rows_per_m * camera.eye_m)
+        draw_start = int(horizon_y - rows_per_m * (hit.wall_height - camera.eye_m))
 
         # Distance attenuation and side shading, plus headlight beam boost
         side_mult = 0.82 if hit.side == 1 else 1.0
@@ -426,21 +454,48 @@ class Raycaster:
             y0 = max(y0, clip[0])
             y1 = min(y1, clip[1])
 
+        span = float(max(1, draw_end - draw_start))
+        set_pixel = buffer.set_pixel
+        tex_w = texture.width
+        tex_h = texture.height
+        tex_chars = texture.chars
+        tex_fg = texture.fg_colors
+        tex_bg = texture.bg_colors
+        tx = int((hit.wall_x % 1.0) * tex_w)
+        tx = max(0, min(tx, tex_w - 1))
+        if fog_factor > 0.0 and weather is not None:
+            fog_r, fog_g, fog_b = weather.fog_color
+            for y in range(y0, y1 + 1):
+                ty = int((((y - draw_start) / span) % 1.0) * tex_h)
+                ty = max(0, min(ty, tex_h - 1))
+                fg_raw = tex_fg[ty][tx]
+                bg_raw = tex_bg[ty][tx]
+
+                fr = int(fg_raw[0] * shade)
+                fg_g = int(fg_raw[1] * shade)
+                fb = int(fg_raw[2] * shade)
+                br = int(bg_raw[0] * shade)
+                bg_g = int(bg_raw[1] * shade)
+                bb = int(bg_raw[2] * shade)
+                set_pixel(screen_x, y, tex_chars[ty][tx],
+                          (int(fr + (fog_r - fr) * fog_factor),
+                           int(fg_g + (fog_g - fg_g) * fog_factor),
+                           int(fb + (fog_b - fb) * fog_factor)),
+                          (int(br + (fog_r - br) * fog_factor),
+                           int(bg_g + (fog_g - bg_g) * fog_factor),
+                           int(bb + (fog_b - bb) * fog_factor)))
+            return
+
         for y in range(y0, y1 + 1):
-            tex_v = (y - draw_start) / float(max(1, draw_end - draw_start))
-            tex_u = hit.wall_x
-            
-            char, fg_raw, bg_raw = texture.sample(tex_u, tex_v)
+            ty = int((((y - draw_start) / span) % 1.0) * tex_h)
+            ty = max(0, min(ty, tex_h - 1))
+            fg_raw = tex_fg[ty][tx]
+            bg_raw = tex_bg[ty][tx]
 
             fg = (int(fg_raw[0] * shade), int(fg_raw[1] * shade), int(fg_raw[2] * shade))
             bg = (int(bg_raw[0] * shade), int(bg_raw[1] * shade), int(bg_raw[2] * shade))
 
-            # Apply Volumetric Fog Color Blending
-            if fog_factor > 0.0 and weather:
-                fg = _blend_color(fg, weather.fog_color, fog_factor)
-                bg = _blend_color(bg, weather.fog_color, fog_factor)
-
-            buffer.set_pixel(screen_x, y, char, fg, bg)
+            set_pixel(screen_x, y, tex_chars[ty][tx], fg, bg)
 
     def _draw_far_body(
         self,
@@ -475,9 +530,10 @@ class Raycaster:
         y0 = max(0, draw_start)
         y1 = min(self.height - 1, draw_end)
         col_hash = int(hit.wall_x * 7.99)
+        set_pixel = buffer.set_pixel
         for y in range(y0, y1 + 1):
             char = '#' if ((col_hash + y) & 3) else '%'
-            buffer.set_pixel(screen_x, y, char, fg, bg)
+            set_pixel(screen_x, y, char, fg, bg)
 
     def _draw_sky_span(
         self,
@@ -517,12 +573,14 @@ class Raycaster:
         ambient: float,
         lightning_intensity: float,
         lightning_col: Tuple[int, int, int],
+        ppm: float,
         buffer: ScreenBuffer
     ):
         is_night = day_night.time_of_day > 20.0 or day_night.time_of_day < 5.0
         wetness = weather.wetness if weather else 0.0
 
-        # Sky rows (above horizon)
+        # Sky rows (above horizon); gradient is row-constant, so it is
+        # computed once per row rather than once per cell
         for y in range(0, max(0, min(self.height, horizon_y))):
             t = y / float(max(1, horizon_y))
             r = int(zenith_col[0] + (horizon_col[0] - zenith_col[0]) * t)
@@ -536,13 +594,16 @@ class Raycaster:
             if weather and weather.fog_density > 0.04:
                 sky_col = _blend_color(sky_col, weather.fog_color, min(0.85, weather.fog_density * 6.0))
 
+            star_base = y * 31
+            twinkle_fg = (240, 240, 255)
+            plain_fg = (100, 100, 120)
             for x in range(self.width):
                 char = ' '
-                if is_night and lightning_intensity < 0.1 and ((x * 17 + y * 31) % 67 == 0):
+                if is_night and lightning_intensity < 0.1 and ((x * 17 + star_base) % 67 == 0):
                     char = '.' if (x + y) % 2 == 0 else '*'
-                    buffer.set_pixel(x, y, char, (240, 240, 255), sky_col)
+                    buffer.set_pixel(x, y, char, twinkle_fg, sky_col)
                 else:
-                    buffer.set_pixel(x, y, char, (100, 100, 120), sky_col)
+                    buffer.set_pixel(x, y, char, plain_fg, sky_col)
 
         # Floor rows (below horizon)
         for y in range(max(0, horizon_y), self.height):
@@ -550,7 +611,7 @@ class Raycaster:
             if dy <= 0.0:
                 continue
 
-            row_dist = (0.5 * self.height) / dy
+            row_dist = (ppm * camera.eye_m) / dy
             floor_shade = clamp((1.0 / (1.0 + 0.1 * row_dist + 0.008 * row_dist * row_dist)) * ambient, 0.1, 1.0)
 
             ray_dir_x0 = camera.dir.x - camera.plane.x
@@ -568,10 +629,14 @@ class Raycaster:
             if weather and weather.fog_density > 0:
                 floor_fog = clamp(1.0 - math.exp(-row_dist * weather.fog_density), 0.0, 0.95)
 
+            has_floor_fog = floor_fog > 0.0 and weather is not None
+            get_floor_type = city_map.get_floor_type
+            set_pixel = buffer.set_pixel
+            fog_color = weather.fog_color if weather else (0, 0, 0)
             for x in range(self.width):
                 cell_x = int(floor_x)
                 cell_y = int(floor_y)
-                ftype = city_map.get_floor_type(cell_x, cell_y)
+                ftype = get_floor_type(cell_x, cell_y)
 
                 fx_frac = floor_x - cell_x
                 fy_frac = floor_y - cell_y
@@ -633,11 +698,11 @@ class Raycaster:
                         fg = (int(140 * floor_shade), int(140 * floor_shade), int(150 * floor_shade))
                         bg = (int(45 * floor_shade), int(45 * floor_shade), int(50 * floor_shade))
 
-                if floor_fog > 0.0 and weather:
-                    fg = _blend_color(fg, weather.fog_color, floor_fog)
-                    bg = _blend_color(bg, weather.fog_color, floor_fog)
+                if has_floor_fog:
+                    fg = _blend_color(fg, fog_color, floor_fog)
+                    bg = _blend_color(bg, fog_color, floor_fog)
 
-                buffer.set_pixel(x, y, char, fg, bg)
+                set_pixel(x, y, char, fg, bg)
                 floor_x += step_x
                 floor_y += step_y
 
@@ -648,8 +713,12 @@ class Raycaster:
         horizon_y: int,
         ambient: float,
         weather: Optional[WeatherSystem],
-        buffer: ScreenBuffer
+        buffer: ScreenBuffer,
+        ppm: Optional[float] = None
     ):
+        if ppm is None:
+            ppm = pixels_per_meter_at_1m(self.width, self.height, camera.plane.length())
+
         active_sprites: List[Tuple[float, Sprite]] = []
         for spr in sprites:
             dx = spr.x - camera.pos.x
@@ -685,16 +754,18 @@ class Raycaster:
                     weather=weather,
                     buffer=buffer,
                     dist=dist,
-                    dist_sq=dist_sq
+                    dist_sq=dist_sq,
+                    ppm=ppm
                 )
                 continue
 
-            spr_h = abs(int(self.height / transform_y * spr.scale_y))
-            spr_w = abs(int(self.height / transform_y * spr.scale_x))
+            rows_per_m = ppm / transform_y
+            spr_h = abs(int(rows_per_m * spr.scale_y * spr.height))
+            spr_w = abs(int(rows_per_m * spr.scale_x * spr.width))
 
-            vert_offset = int((spr.vertical_offset * self.height) / transform_y)
-            draw_y0 = int(horizon_y - spr_h / 2.0 - vert_offset)
-            draw_y1 = int(horizon_y + spr_h / 2.0 - vert_offset)
+            ground_row = horizon_y + rows_per_m * camera.eye_m - rows_per_m * spr.vertical_offset
+            draw_y0 = int(ground_row - spr_h)
+            draw_y1 = int(ground_row)
 
             draw_x0 = int(spr_screen_x - spr_w / 2.0)
             draw_x1 = int(spr_screen_x + spr_w / 2.0)
@@ -742,14 +813,17 @@ class Raycaster:
         weather: Optional[WeatherSystem],
         buffer: ScreenBuffer,
         dist: float,
-        dist_sq: float
+        dist_sq: float,
+        ppm: Optional[float] = None
     ):
         """
         Pseudo-volumetric box projection: front and side faces share the
         projected extent with an angle-dependent split, so the visible corner
         edge slides across the prop as the camera orbits it.
         """
-        px_per_unit = self.height / transform_y
+        if ppm is None:
+            ppm = pixels_per_meter_at_1m(self.width, self.height, camera.plane.length())
+        rows_per_m = ppm / transform_y
 
         cam_dx = camera.pos.x - spr.x
         cam_dy = camera.pos.y - spr.y
@@ -767,14 +841,14 @@ class Raycaster:
         rows = max(len(face_chars), len(spr.side_chars))
 
         # Full-face view must match the legacy flat billboard footprint
-        cell_px = (px_per_unit * spr.scale_x) / float(front_w)
+        cell_px = (rows_per_m * spr.scale_x) / float(front_w)
         face_span = cell_px * face_w * front_share
         side_span = cell_px * side_w * (1.0 - front_share)
         total_span = face_span + side_span
 
-        spr_h = abs(int(px_per_unit * spr.scale_y * rows / float(max(1, spr.height))))
-        vert_offset = int((spr.vertical_offset * self.height) / transform_y)
-        draw_y0 = int(horizon_y - spr_h / 2.0 - vert_offset)
+        spr_h = abs(int(rows_per_m * spr.scale_y * rows))
+        ground_row = horizon_y + rows_per_m * camera.eye_m - rows_per_m * spr.vertical_offset
+        draw_y0 = int(ground_row - spr_h)
 
         x0 = spr_screen_x - int(total_span / 2.0)
         x1 = x0 + int(total_span)

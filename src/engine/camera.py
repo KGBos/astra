@@ -1,5 +1,7 @@
 """
 First-person camera controller with physics, collision, and pitch for Astra 3D.
+
+All units are honest metres: eye height, speeds, radii, and jump clearance.
 """
 
 import math
@@ -7,30 +9,42 @@ from src.engine.math3d import Vector2, clamp
 
 
 class Camera:
+    EYE_HEIGHT_M = 1.7      # standing human eye elevation
+    SEATED_EYE_M = 1.0      # driver cockpit eye elevation
+    WALK_SPEED = 3.6        # m/s
+    SPRINT_MULT = 2.0       # sprint => 7.2 m/s
+    BACKWARD_MULT = 0.7
+    STRAFE_MULT = 0.8
+    ROT_SPEED = 2.8         # radians per second
+    COLLISION_RADIUS = 0.35 # shoulder radius in metres
+    JUMP_VELOCITY = 4.4     # m/s => ~1.0 m clearance (v = sqrt(2 * g * h))
+    GRAVITY = 9.8           # m/s^2
+    BOB_AMPLITUDE = 0.02    # fraction of viewport height per bob cycle
+
     def __init__(self, x: float = 12.5, y: float = 12.5, fov_deg: float = 66.0):
-        # Position in world coordinates
+        # Position in world coordinates (1 unit = 1 metre)
         self.pos = Vector2(x, y)
-        
+
         # Direction vector (initial facing East (+X))
         self.dir = Vector2(1.0, 0.0)
-        
+
         # Camera plane vector (perpendicular to dir, length determines FOV)
         # FOV = 2 * atan(plane_len / dir_len) => plane_len = tan(FOV / 2)
         fov_rad = math.radians(fov_deg)
         plane_len = math.tan(fov_rad / 2.0)
         self.plane = Vector2(0.0, plane_len)
 
-        # Eye height and pitch
-        self.eye_height = 0.5    # 0.5 = middle height in unit cube
+        # Eye elevation above the ground in metres
+        self.eye_m = self.EYE_HEIGHT_M
         self.pitch = 0.0         # vertical look offset in pixels/characters [-15, 15]
         self.z_velocity = 0.0
         self.is_jumping = False
 
-        # Movement attributes
-        self.move_speed = 4.5    # units per second
-        self.sprint_mult = 1.8
-        self.rot_speed = 2.8     # radians per second
-        self.collision_radius = 0.25
+        # Movement attributes (metres per second)
+        self.move_speed = self.WALK_SPEED
+        self.sprint_mult = self.SPRINT_MULT
+        self.rot_speed = self.ROT_SPEED
+        self.collision_radius = self.COLLISION_RADIUS
 
         # Head bobbing
         self.bob_timer = 0.0
@@ -59,17 +73,17 @@ class Camera:
 
     def jump(self):
         """Initiates a jump if on ground."""
-        if not self.is_jumping and self.eye_height <= 0.51:
+        if not self.is_jumping and self.eye_m <= self.EYE_HEIGHT_M + 0.01:
             self.is_jumping = True
-            self.z_velocity = 2.8
+            self.z_velocity = self.JUMP_VELOCITY
 
     def update_physics(self, dt: float):
         """Updates jumping and gravity physics."""
         if self.is_jumping:
-            self.eye_height += self.z_velocity * dt
-            self.z_velocity -= 9.8 * dt  # Gravity
-            if self.eye_height <= 0.5:
-                self.eye_height = 0.5
+            self.eye_m += self.z_velocity * dt
+            self.z_velocity -= self.GRAVITY * dt
+            if self.eye_m <= self.EYE_HEIGHT_M:
+                self.eye_m = self.EYE_HEIGHT_M
                 self.z_velocity = 0.0
                 self.is_jumping = False
 
@@ -80,20 +94,20 @@ class Camera:
         return self._apply_movement(dx, dy, world_map, is_moving=True, dt=dt)
 
     def move_backward(self, dt: float, is_sprinting: bool, world_map) -> bool:
-        speed = self.move_speed * (self.sprint_mult if is_sprinting else 1.0) * dt * 0.7
+        speed = self.move_speed * (self.sprint_mult if is_sprinting else 1.0) * dt * self.BACKWARD_MULT
         dx = -self.dir.x * speed
         dy = -self.dir.y * speed
         return self._apply_movement(dx, dy, world_map, is_moving=True, dt=dt)
 
     def strafe_left(self, dt: float, world_map) -> bool:
-        speed = self.move_speed * 0.8 * dt
+        speed = self.move_speed * self.STRAFE_MULT * dt
         # Strafe left is perpendicular to dir: (-dir.y, dir.x)
         dx = self.dir.y * speed
         dy = -self.dir.x * speed
         return self._apply_movement(dx, dy, world_map, is_moving=True, dt=dt)
 
     def strafe_right(self, dt: float, world_map) -> bool:
-        speed = self.move_speed * 0.8 * dt
+        speed = self.move_speed * self.STRAFE_MULT * dt
         dx = -self.dir.y * speed
         dy = self.dir.x * speed
         return self._apply_movement(dx, dy, world_map, is_moving=True, dt=dt)
@@ -122,7 +136,7 @@ class Camera:
         # Head bobbing
         if is_moving and moved:
             self.bob_timer += dt * 10.0
-            self.bob_amount = math.sin(self.bob_timer) * 0.04
+            self.bob_amount = math.sin(self.bob_timer) * self.BOB_AMPLITUDE
         else:
             self.bob_amount = 0.0
 

@@ -37,13 +37,13 @@ class TestVehicleAndAudio(unittest.TestCase):
         self.assertEqual(self.vehicle_ctrl.current_vehicle, self.vehicle)
         self.assertEqual(self.camera.pos.x, self.vehicle.x)
         self.assertEqual(self.camera.pos.y, self.vehicle.y)
-        self.assertAlmostEqual(self.camera.eye_height, 0.42)
+        self.assertAlmostEqual(self.camera.eye_m, Camera.SEATED_EYE_M)
 
         # Exit vehicle
         self.vehicle_ctrl.exit_vehicle(self.camera)
         self.assertFalse(self.vehicle_ctrl.is_driving)
         self.assertIsNone(self.vehicle_ctrl.current_vehicle)
-        self.assertAlmostEqual(self.camera.eye_height, 0.5)
+        self.assertAlmostEqual(self.camera.eye_m, Camera.EYE_HEIGHT_M)
 
     def test_driving_physics_acceleration_and_steering(self):
         self.vehicle_ctrl.enter_vehicle(self.vehicle, self.camera)

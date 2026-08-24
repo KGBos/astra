@@ -99,7 +99,7 @@ class NPC:
             [(100, 120, 160) for _ in range(8)]
         ]
 
-        return Sprite(self.x, self.y, f"NPC_{self.name}", chars, fg, scale_x=0.5, scale_y=0.6)
+        return Sprite(self.x, self.y, f"NPC_{self.name}", chars, fg, scale_x=0.0625, scale_y=0.4375)
 
 
 def build_default_npcs() -> List[NPC]:

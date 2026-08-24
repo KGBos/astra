@@ -32,16 +32,16 @@ Current world is 42×42 tiles ≈ a diorama: crossable on foot in ~9s, roads 2 t
 - Benchmark matrix added to CI: 80×32, 120×40, 160×50.
 
 ## 6. Migration Checklist
-- [ ] textures.py height_mult table → meters
-- [ ] camera.py speeds/eye/jump/radius
-- [ ] raycaster horizon/projection constants audit for non-square assumptions
-- [ ] traffic_manager spawn/lane math off ns_road_cols hardcode
-- [ ] pedestrian_manager walkable scan + archetype districts
-- [ ] procedural_gen full rewrite (v2) behind seed contract
-- [ ] hud minimap zoom (fixed radius is useless at city scale) + distance readouts
+- [x] textures.py height_mult table → meters (Cycle A)
+- [x] camera.py speeds/eye/jump/radius (Cycle A)
+- [x] raycaster horizon/projection constants audit for non-square assumptions (Cycle A: FOV-derived `pixels_per_meter_at_1m`, eye-height-anchored wall/sprite/floor projection)
+- [ ] traffic_manager spawn/lane math off ns_road_cols hardcode (Cycle A interim: road-index cruise classes 13/9/5 m/s; real hierarchy lands with Generator v2)
+- [ ] pedestrian_manager walkable scan + archetype districts (scan verified <0.5 s at 320²; district archetypes Cycle B)
+- [ ] procedural_gen full rewrite (v2) behind seed contract (existing generator verified functional at default 320×320; spawn spiral capped at radius 24 + avenue fallback)
+- [x] hud minimap zoom (fixed radius is useless at city scale) + distance readouts (Cycle A: `M` cycles OFF → NEAR 31 m → FAR 95 m auto-scaled radar)
 - [ ] landmark registry spacing + compass ranges
-- [ ] vehicle_controller top speeds (m/s) + cockpit gauges
-- [ ] tests: determinism, spawn safety, benchmark matrix
+- [x] vehicle_controller top speeds (m/s) + cockpit gauges (Cycle A: km/h readout, type tops 16/14/12/9 m/s)
+- [ ] tests: determinism, spawn safety, benchmark matrix (determinism + spawn safety + honesty suite landed in Cycle A, `tests/test_units_honesty.py`; CI benchmark matrix deferred — no CI change this cycle)
 
 ## 7. Execution Plan (each = builder agents in worktrees → review gate → merge)
 1. **Cycle A — Honest Units**: camera/speeds/textures/map-size plumbing on existing layout. Playable checkpoint of the feel.
