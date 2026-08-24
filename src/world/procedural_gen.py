@@ -470,22 +470,28 @@ class ProceduralCityGenerator:
 
         # Block Massing according to District
         if district == DistrictType.CYBER_DOWNTOWN.value:
-            wall_palette = [1, 2, 8, 7]  # Glass, Neon, Megastructure Matrix, Arcology
+            # Night City weighting: neon towers and arcologies dominate
+            wall_palette = [1, 2, 8, 7]           # Glass, Neon, Megastructure, Arcology
+            palette_weights = [2, 4, 1, 3]
             floor_type = FLOOR_SIDEWALK
         elif district == DistrictType.FINANCIAL_CORE.value:
             wall_palette = [1, 8, 7]
+            palette_weights = [2, 2, 3]
             floor_type = FLOOR_PLAZA_TILES
         elif district == DistrictType.NEON_ENTERTAINMENT.value:
             wall_palette = [2, 4, 6]     # Neon Skyscraper, Ramen Storefront, Neon Hotel
+            palette_weights = [4, 1, 2]
             floor_type = FLOOR_SIDEWALK
         elif district == DistrictType.HISTORIC_QUARTER.value:
             wall_palette = [3]           # Brick Brownstones
+            palette_weights = [1]
             floor_type = FLOOR_COBBLESTONE
         else:  # INDUSTRIAL_DOCKLANDS
             wall_palette = [5, 9]        # Concrete Warehouse, Industrial Silo
+            palette_weights = [3, 1]
             floor_type = FLOOR_SIDEWALK
 
-        primary_wall = rng.choice(wall_palette)
+        primary_wall = rng.choices(wall_palette, weights=palette_weights)[0]
 
         # Procedural Block Layout (Courtyard, Alleys, or Solid Footprint)
         block_w = x1 - x0 + 1

@@ -6,7 +6,7 @@ import math
 import random
 from enum import Enum
 from typing import List, Tuple
-from src.entities.sprite import Sprite
+from src.entities.sprite import Sprite, VolumetricSprite
 from src.world.city_map import FloorType
 
 
@@ -88,73 +88,71 @@ class Vehicle:
             self.x = new_x
             self.y = new_y
 
-    def get_sprite_for_camera(self, cam_x: float, cam_y: float) -> Sprite:
-        """Returns directional ASCII sprite based on angle between vehicle heading and camera view."""
-        # Angle of vehicle motion
-        v_angle = math.atan2(self.dy, self.dx)
-        # Vector from vehicle to camera
-        rel_x = cam_x - self.x
-        rel_y = cam_y - self.y
-        rel_angle = math.atan2(rel_y, rel_x)
-        
-        # Difference angle
-        diff = (rel_angle - v_angle + math.pi * 3) % (math.pi * 2) - math.pi
+    def get_sprite_for_camera(self, cam_x: float, cam_y: float) -> VolumetricSprite:
+        """
+        Pseudo-volumetric vehicle box: distinct FRONT (headlights), BACK
+        (taillights) and SIDE (profile) faces projected with an angle-dependent
+        split, so the car reads as a solid body from any orbit angle.
+        """
+        # Vehicle motion direction is its front-facing normal
+        facing_angle = math.atan2(self.dy, self.dx)
 
-        # Determine aspect: Front, Back, or Side
-        # |diff| < pi/4 => camera is in front (seeing front of car)
-        # |diff| > 3pi/4 => camera is behind (seeing rear of car)
-        # otherwise side view
-        is_front = abs(diff) < math.pi * 0.3
-        is_rear = abs(diff) > math.pi * 0.7
+        siren_color = None
+        if self.vtype == VehicleType.POLICE:
+            siren_color = (255, 30, 30) if int(self.siren_tick) % 2 == 0 else (30, 100, 255)
 
-        if is_front:
-            # Front view of car
-            chars = [
-                "  [TAXI]  " if self.vtype == VehicleType.TAXI else "  ======  ",
-                " /######\\ ",
-                "[o======o]",
-                " |O|  |O| "
-            ]
-            fg = [
-                [(255, 255, 100) for _ in range(10)],
-                [(180, 220, 255) for _ in range(10)],  # windshield
-                [(255, 255, 200) if c == 'o' else self.primary_color for c in "[o======o]"],  # glowing headlights
-                [(50, 50, 60) for _ in range(10)]      # tires
-            ]
-            if self.vtype == VehicleType.POLICE:
-                siren_color = (255, 30, 30) if int(self.siren_tick) % 2 == 0 else (30, 100, 255)
-                fg[0] = [siren_color for _ in range(10)]
+        # ---- FRONT face: windshield + glowing headlights ----
+        front_chars = [
+            "  [TAXI]  " if self.vtype == VehicleType.TAXI else "  ======  ",
+            " /######\\ ",
+            "[o======o]",
+            " |O|  |O| "
+        ]
+        front_fg = [
+            [(255, 255, 100) for _ in range(10)],
+            [(180, 220, 255) for _ in range(10)],  # windshield
+            [(255, 255, 200) if c == 'o' else self.primary_color for c in "[o======o]"],  # headlights
+            [(50, 50, 60) for _ in range(10)]      # tires
+        ]
+        if siren_color:
+            front_fg[0] = [siren_color for _ in range(10)]
 
-            return Sprite(self.x, self.y, "CAR_FRONT", chars, fg, scale_x=0.7, scale_y=0.5, is_luminous=True)
+        # ---- BACK face: red taillights ----
+        back_chars = [
+            "  ======  ",
+            " /######\\ ",
+            "[*======*]",
+            " |O|  |O| "
+        ]
+        back_fg = [
+            [self.primary_color for _ in range(10)],
+            [(100, 120, 140) for _ in range(10)],
+            [(255, 20, 20) if c == '*' else self.primary_color for c in "[*======*]"],  # taillights
+            [(50, 50, 60) for _ in range(10)]
+        ]
+        if siren_color:
+            back_fg[0] = [siren_color for _ in range(10)]
 
-        elif is_rear:
-            # Rear view of car (red taillights)
-            chars = [
-                "  ======  ",
-                " /######\\ ",
-                "[*======*]",
-                " |O|  |O| "
-            ]
-            fg = [
-                [self.primary_color for _ in range(10)],
-                [(100, 120, 140) for _ in range(10)],
-                [(255, 20, 20) if c == '*' else self.primary_color for c in "[*======*]"],  # red taillights
-                [(50, 50, 60) for _ in range(10)]
-            ]
-            return Sprite(self.x, self.y, "CAR_REAR", chars, fg, scale_x=0.7, scale_y=0.5, is_luminous=True)
+        # ---- SIDE face: full profile with wheels ----
+        side_chars = [
+            "   .-----.   ",
+            " _/ # # # \\_ ",
+            "[o=========*]",
+            "  (O)   (O)  "
+        ]
+        side_fg = [
+            [self.primary_color for _ in range(13)],
+            [(180, 220, 255) if c == '#' else self.primary_color for c in " _/ # # # \\_ "],
+            [(255, 255, 180) if c == 'o' else ((255, 30, 30) if c == '*' else self.primary_color) for c in "[o=========*]"],
+            [(50, 50, 60) for _ in range(13)]
+        ]
 
-        else:
-            # Side profile of car
-            chars = [
-                "   .-----.   ",
-                " _/ # # # \\_ ",
-                "[o=========*]",
-                "  (O)   (O)  "
-            ]
-            fg = [
-                [self.primary_color for _ in range(13)],
-                [(180, 220, 255) if c == '#' else self.primary_color for c in " _/ # # # \\_ "],
-                [(255, 255, 180) if c == 'o' else ((255, 30, 30) if c == '*' else self.primary_color) for c in "[o=========*]"],
-                [(50, 50, 60) for _ in range(13)]
-            ]
-            return Sprite(self.x, self.y, "CAR_SIDE", chars, fg, scale_x=0.85, scale_y=0.5, is_luminous=True)
+        return VolumetricSprite(
+            self.x, self.y, "CAR",
+            front_chars, front_fg,
+            side_chars, side_fg,
+            facing_angle=facing_angle,
+            scale_x=0.75, scale_y=0.5,
+            is_luminous=True,
+            back_chars=back_chars, back_fg=back_fg
+        )

@@ -168,5 +168,33 @@ class TestTwoTierDrawDistance(unittest.TestCase):
         self.assertFalse(red_seen, "sprite behind wall was not occluded")
 
 
+class TestNightCitySkyline(unittest.TestCase):
+    """Night City profile: towers loom, downtown favors neon masses."""
+
+    def test_tower_heights_loom_over_low_districts(self):
+        from src.world.textures import get_texture
+        self.assertGreaterEqual(get_texture(TOWER_TYPE).height_mult, 6.5)      # neon tower
+        self.assertGreaterEqual(get_texture(ARCLOGY_TYPE).height_mult, 7.5)    # arcology
+        self.assertLess(get_texture(WAREHOUSE_TYPE).height_mult, 1.5)          # low docks
+
+    def test_downtown_blocks_favor_tall_types(self):
+        """Across seeds, downtown blocks are mostly tower-class wall types."""
+        tall_types = {1, 2, 7, 8}
+        tall_hits = 0
+        total = 0
+        for seed in range(6):
+            cm = CityMap(width=42, height=42, seed=seed)
+            for y in range(cm.height):
+                for x in range(cm.width):
+                    t = cm.walls[y][x]
+                    if cm.get_district_at(x, y) == "CYBER-DOWNTOWN" and t > 0:
+                        total += 1
+                        if t in tall_types:
+                            tall_hits += 1
+        self.assertGreater(total, 0)
+        self.assertGreater(tall_hits / total, 0.7,
+                           f"downtown tower share too low: {tall_hits}/{total}")
+
+
 if __name__ == "__main__":
     unittest.main()

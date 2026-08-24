@@ -711,17 +711,23 @@ class Raycaster:
 
         cam_dx = camera.pos.x - spr.x
         cam_dy = camera.pos.y - spr.y
-        front_share, front_left = spr.visible_faces(cam_dx, cam_dy)
+        front_share, front_left, see_front = spr.visible_faces(cam_dx, cam_dy)
 
-        front_w = len(spr.front_chars[0])
+        # Rear hemisphere shows the back face art when one exists
+        if see_front:
+            face_chars, face_fg = spr.front_chars, spr.front_fg
+        else:
+            face_chars, face_fg = spr.back_chars, spr.back_fg
+        face_w = len(face_chars[0])
+
         side_w = len(spr.side_chars[0])
-        rows = max(spr.height, len(spr.side_chars))
+        rows = max(len(face_chars), len(spr.side_chars))
 
-        # Full-front view must match the legacy flat billboard footprint
+        # Full-face view must match the legacy flat billboard footprint
         cell_px = (px_per_unit * spr.scale_x) / float(front_w)
-        front_span = cell_px * front_w * front_share
+        face_span = cell_px * face_w * front_share
         side_span = cell_px * side_w * (1.0 - front_share)
-        total_span = front_span + side_span
+        total_span = face_span + side_span
 
         spr_h = abs(int(px_per_unit * spr.scale_y * rows / float(max(1, spr.height))))
         vert_offset = int((spr.vertical_offset * self.height) / transform_y)
@@ -744,17 +750,17 @@ class Raycaster:
             if transform_y >= self.z_buffer[stripe]:
                 continue
 
-            in_front = (stripe < x0 + front_span) if front_left else (stripe >= x0 + side_span)
-            if in_front:
-                art_chars, art_fg, art_w = spr.front_chars, spr.front_fg, front_w
+            in_face = (stripe < x0 + face_span) if front_left else (stripe >= x0 + side_span)
+            if in_face:
+                art_chars, art_fg, art_w = face_chars, face_fg, face_w
                 face_offset = (stripe - x0) if front_left else (stripe - (x0 + side_span))
                 plane_shade = shade
             else:
                 art_chars, art_fg, art_w = spr.side_chars, spr.side_fg, side_w
-                face_offset = (stripe - (x0 + front_span)) if front_left else (stripe - x0)
+                face_offset = (stripe - (x0 + face_span)) if front_left else (stripe - x0)
                 plane_shade = shade * VolumetricSprite.SIDE_SHADE
 
-            span = max(1.0, front_span if in_front else side_span)
+            span = max(1.0, face_span if in_face else side_span)
             tex_x = max(0, min(int(face_offset / span * art_w), art_w - 1))
 
             for y in range(y_start, y_end + 1):
