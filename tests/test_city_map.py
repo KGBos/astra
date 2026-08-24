@@ -23,17 +23,23 @@ class TestCityMap(unittest.TestCase):
             self.assertTrue(self.map.is_solid(41, y))
 
     def test_road_grid_continuity(self):
-        # Road columns must not be solid
-        for col in self.map.ns_road_cols:
-            for y in range(2, 40):
-                self.assertFalse(self.map.is_solid(col, y))
-                self.assertFalse(self.map.is_solid(col + 1, y))
-
-        # Road rows must not be solid
-        for row in self.map.ew_road_rows:
-            for x in range(2, 40):
-                self.assertFalse(self.map.is_solid(x, row))
-                self.assertFalse(self.map.is_solid(x, row + 1))
+        # Generator v2: every planned road band must be fully carved (no
+        # buildings on roads) along its live span -- the connectivity
+        # guarantee that replaced the old uniform 2-lane grid assumption.
+        # Spans may be truncated by the harbor quay (EW roads end there).
+        for seg in self.map.road_segments:
+            lo = seg.center - seg.width // 2
+            hi = lo + seg.width
+            if seg.axis == "NS":
+                for y in range(max(2, seg.start), min(self.map.height - 2, seg.end + 1)):
+                    for x in range(lo, hi):
+                        self.assertFalse(self.map.is_solid(x, y),
+                                         f"solid in NS {seg.road_class}@{seg.center} at {(x, y)}")
+            else:
+                for x in range(max(2, seg.start), min(self.map.width - 2, seg.end + 1)):
+                    for y in range(lo, hi):
+                        self.assertFalse(self.map.is_solid(x, y),
+                                         f"solid in EW {seg.road_class}@{seg.center} at {(x, y)}")
 
     def test_traffic_lights_registered(self):
         self.assertGreater(len(self.map.traffic_lights), 10)
@@ -44,7 +50,9 @@ class TestCityMap(unittest.TestCase):
         self.assertNotEqual(tl.state, initial_state)
 
     def test_districts_and_streets(self):
-        district = self.map.get_district_at(8, 8)
+        # Generator v2 zones center-out: the map centre is downtown ground
+        mid = self.map.width // 2
+        district = self.map.get_district_at(mid, mid)
         self.assertIn("CYBER-DOWNTOWN", district)
         street = self.map.get_nearest_street_name(4, 4)
         self.assertTrue(len(street) > 0)

@@ -54,9 +54,13 @@ For each screen column $x \in [0, \text{width}-1]$:
 
 ## 3. Dynamic City Life Simulation
 
-### 3.1 Road Grid & Traffic Light State Machine
+### 3.1 Procedural Generator v2 & Road Hierarchy
+- `ProceduralCityGenerator` (v2) plans a hierarchical road lattice per axis: **arterials** every 40–56 m (width 14), **collectors** every 16–24 m centre-line rhythm in ~62% of corridors (width 9), and 5 m **local lanes** through open block faces wider than 34 m — all seed-jittered, no uniform grid.
+- Super-blocks between arterials (18–48 m faces) receive district-aware massing: tower podiums with setback cores, perimeter courtyards with service alleys, 5–9 m parcel streetwalls with sidewalk gaps, and warehouse yards.
+- Zoning is center-out: downtown towers within ~90 m of centre, midrise ring to ~180 m, industrial far quadrants, an >80×80 m central park spanning arterial transverses, and an eastern harbor front (quay wall, bridges, piers, bollards).
+- Measured geometry is exported as `road_segments` / `road_lanes()` (centre-lines, widths, classes, lane offsets, spans) for traffic spawning; `RoadGraph` nodes sit on line crossings for BFS routing.
 - Intersections feature automatic traffic lights cycling through `NS_GREEN` $\to$ `NS_YELLOW` $\to$ `EW_GREEN` $\to$ `EW_YELLOW`.
-- Autonomous vehicles navigate the 2-lane road grid, follow road directions, decelerate and stop when approaching red lights or leading cars, and accelerate when green.
+- Autonomous vehicles navigate the hierarchical road grid, follow road directions, decelerate and stop when approaching red lights or leading cars, and accelerate when green.
 
 ### 3.2 Day/Night Cycle & Atmospheric Lighting
 - 24-hour clock simulating Dawn, Day, Sunset, Dusk, and Night.

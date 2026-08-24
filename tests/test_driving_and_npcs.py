@@ -16,7 +16,9 @@ from src.entities.vehicle_controller import VehicleController
 
 class TestDrivingAndNPCs(unittest.TestCase):
     def setUp(self):
-        self.map = CityMap(width=42, height=42)
+        # Deterministic seed: the mount-and-drive scenario needs a clear
+        # runway from the fixed camera start, which random layouts break.
+        self.map = CityMap(width=42, height=42, seed=20260823)
         self.camera = Camera(x=12.5, y=6.5)
         self.ctrl = VehicleController()
         self.vehicle = Vehicle(x=12.5, y=7.0, vtype=VehicleType.CYBER_SEDAN, heading_dir=(0, 1))

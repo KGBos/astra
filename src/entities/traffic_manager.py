@@ -8,6 +8,11 @@ from typing import List, Tuple, Optional
 from src.entities.sprite import Sprite, make_streetlamp_sprite, make_tree_sprite, make_fire_hydrant_sprite
 from src.entities.car import Vehicle, VehicleType, cruise_speed_for
 from src.entities.npc import NPC, build_default_npcs
+from src.world.city_map import FloorType
+
+DRIVABLE_FLOORS = (FloorType.ROAD_NS, FloorType.ROAD_EW,
+                   FloorType.INTERSECTION, FloorType.BRIDGE)
+SPAWN_RETRY_LIMIT = 10
 
 
 class TrafficManager:
@@ -45,16 +50,44 @@ class TrafficManager:
             for row in [8.5, 16.5, 24.5, 32.5]:
                 self.static_props.append(make_fire_hydrant_sprite(col - 1.2, row))
 
+    def _on_drivable_road(self, x: float, y: float) -> bool:
+        """True when the cell under (x, y) is an actual drivable road floor
+        (never harbor water, piers, or sidewalks)."""
+        return self.city_map.get_floor_type(int(x), int(y)) in DRIVABLE_FLOORS
+
+    def _road_candidate(self, make_candidate):
+        """Samples a spawn candidate, re-rolling up to SPAWN_RETRY_LIMIT times
+        until it lands on a drivable road cell; None if all attempts fail."""
+        for _ in range(SPAWN_RETRY_LIMIT):
+            cand = make_candidate()
+            if self._on_drivable_road(cand[0], cand[1]):
+                return cand
+        return None
+
     def _spawn_vehicles(self, count: int):
         vtypes = [VehicleType.TAXI, VehicleType.CYBER_SEDAN, VehicleType.POLICE, VehicleType.BUS]
-        
+
         candidates = []
+
+        def ns_slot(col: float, dy):
+            def mk():
+                return (col, random.uniform(3, self.city_map.height - 4),
+                        random.choice(vtypes), dy)
+            return self._road_candidate(mk)
+
+        def ew_slot(row: float, dx):
+            def mk():
+                return (random.uniform(3, self.city_map.width - 4), row,
+                        random.choice(vtypes), dx)
+            return self._road_candidate(mk)
+
         for col in self.city_map.ns_road_cols:
-            candidates.append((col + 0.5, random.uniform(3, self.city_map.height - 4), random.choice(vtypes), (0, 1)))
-            candidates.append((col + 1.5, random.uniform(3, self.city_map.height - 4), random.choice(vtypes), (0, -1)))
+            candidates.append(ns_slot(col + 0.5, (0, 1)))
+            candidates.append(ns_slot(col + 1.5, (0, -1)))
         for row in self.city_map.ew_road_rows:
-            candidates.append((random.uniform(3, self.city_map.width - 4), row + 0.5, random.choice(vtypes), (1, 0)))
-            candidates.append((random.uniform(3, self.city_map.width - 4), row + 1.5, random.choice(vtypes), (-1, 0)))
+            candidates.append(ew_slot(row + 0.5, (1, 0)))
+            candidates.append(ew_slot(row + 1.5, (-1, 0)))
+        candidates = [c for c in candidates if c is not None]
         random.shuffle(candidates)
         for x, y, vtype, heading in candidates[:max(0, count)]:
             vehicle = Vehicle(x, y, vtype, heading)
