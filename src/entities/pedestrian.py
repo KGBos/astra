@@ -354,7 +354,7 @@ class Pedestrian:
                 [p["torso"] for _ in range(5)],
                 [p["legs"] for _ in range(5)]
             ]
-            return Sprite(self.x, self.y, f"PED_SIT_{self.archetype.value}", chars, fg, scale_x=0.45, scale_y=0.6)
+            return Sprite(self.x, self.y, f"PED_SIT_{self.archetype.value}", chars, fg, scale_x=0.12, scale_y=0.4)
 
         if is_front:
             # Front view (facing camera)
@@ -368,7 +368,7 @@ class Pedestrian:
                 [p["torso"] for _ in range(6)],
                 [p["legs"] for _ in range(6)]
             ]
-            return Sprite(self.x, self.y, f"PED_FRONT_{self.archetype.value}", chars, fg, scale_x=0.45, scale_y=0.7)
+            return Sprite(self.x, self.y, f"PED_FRONT_{self.archetype.value}", chars, fg, scale_x=0.083, scale_y=0.583)
 
         elif is_rear:
             # Rear view (walking away)
@@ -382,7 +382,7 @@ class Pedestrian:
                 [p["torso"] for _ in range(6)],
                 [p["legs"] for _ in range(6)]
             ]
-            return Sprite(self.x, self.y, f"PED_REAR_{self.archetype.value}", chars, fg, scale_x=0.45, scale_y=0.7)
+            return Sprite(self.x, self.y, f"PED_REAR_{self.archetype.value}", chars, fg, scale_x=0.083, scale_y=0.583)
 
         else:
             # Side profile
@@ -396,4 +396,4 @@ class Pedestrian:
                 [p["torso"] for _ in range(5)],
                 [p["legs"] for _ in range(5)]
             ]
-            return Sprite(self.x, self.y, f"PED_SIDE_{self.archetype.value}", chars, fg, scale_x=0.4, scale_y=0.7)
+            return Sprite(self.x, self.y, f"PED_SIDE_{self.archetype.value}", chars, fg, scale_x=0.1, scale_y=0.583)

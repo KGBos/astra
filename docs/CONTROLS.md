@@ -1,17 +1,30 @@
 # Astra 3D Controls & Navigation Guide
 
+## 📏 Honest Units (M5 Cycle A)
+The world is measured in true metres: **1 tile = 1 m**. Eye height is 1.7 m on foot
+(≈1.0 m seated in a vehicle), walking is 3.6 m/s, sprinting is 7.2 m/s, and a jump
+clears ~1 m under 9.8 m/s² gravity. Facade heights are real too: storefronts ~4 m,
+brownstones ~11 m, hotels ~18 m, towers 40–60 m. HUD distances and the radar range
+are true metres.
+
+> [!WARNING]
+> **Breaking change:** with the switch to the 320×320 m mega-map and metre-based
+> heights, **pre-M5 seeds generate a different city than they used to** (the seed
+> format itself is unchanged). Old saved seed bookmarks will not reproduce their
+> original layouts.
+
 ## 🚶 Pedestrian & Camera Controls
 | Action | Key | Description |
 | :--- | :--- | :--- |
-| **Move Forward** | `W` or `↑` | Walk forward in looking direction |
-| **Move Backward** | `S` or `↓` | Walk backward |
-| **Strafe Left** | `A` | Step sideways to the left |
-| **Strafe Right** | `D` | Step sideways to the right |
+| **Move Forward** | `W` or `↑` | Walk forward at 3.6 m/s |
+| **Move Backward** | `S` or `↓` | Walk backward (0.7×) |
+| **Strafe Left** | `A` | Step sideways to the left (0.8×) |
+| **Strafe Right** | `D` | Step sideways to the right (0.8×) |
 | **Turn Left** | `Q` or `←` | Rotate camera view left |
 | **Turn Right** | `→` | Rotate camera view right |
 | **Look Up / Down** | `I` / `K` | Pitch camera view upward / downward |
-| **Sprint** | `Shift + W` | Sprint at $1.8\times$ movement velocity |
-| **Jump** | `Space` | Jump with gravity simulation |
+| **Sprint** | `Shift + W` | Sprint at $2.0\times$ movement velocity (7.2 m/s) |
+| **Jump** | `Space` | Jump ~1 m high with gravity simulation |
 
 ---
 
@@ -36,7 +49,7 @@
 | **Turbo Nitro Boost** | `Shift + W` | Engage nitrous oxide injection with speed lines |
 | **Toggle Headlights** | `L` | Switch the high-beam lighting cone on/off (auto-on while driving, off when walking) |
 | **Honk Car Horn** | `H` | Sound vehicle horn and broadcast alert |
-| **Cockpit Dashboard** | Automatic | Speedometer, gear indicator, tachometer, sirens while driving |
+| **Cockpit Dashboard** | Automatic | Speedometer (km/h), gear indicator, tachometer, sirens while driving |
 
 ---
 
@@ -51,7 +64,7 @@
 | **Tune Radio Station** | `G` | Cycle radio channels (Retrowave, Beats, Jazz, News) |
 | **Toggle Audio Mute** | `V` | Master mute/unmute (starts muted; launch with `--audio` to start unmuted) |
 | **Cycle Landmarks** | `U` | Inspect the next point of interest |
-| **Toggle GPS Radar** | `M` | Show/hide the top-right mini-map radar |
+| **Cycle GPS Radar** | `M` | Cycle the mini-map radar OFF → NEAR (31 m range) → FAR (95 m range); each press steps through zoom along with show/hide |
 | **Skip Time of Day** | `T` | Advance clock by 4 hours (Day/Sunset/Night) |
 | **Toggle Weather** | `R` | Cycle weather between Clear, Rain, Storm, Fog, Snow, Acid Rain |
 | **Re-synthesize City** | `N` | Generate a brand-new procedural metropolis |
@@ -60,6 +73,7 @@
 ---
 
 ## Engine Rendering Features
+- **True-metre projection**: wall slices, sprites, and the floor plane are projected through a FOV-derived pixels-per-metre focal length, so a 40 m tower at 20 m looks exactly as tall as the math says; the eye height (1.7 m / seated 1.0 m) anchors every ground line.
 - **Two-tier draw distance**: a detailed raycaster covers the near field, while a coarse "far renderer" simplifies distant masses into a hazy skyline silhouette.
 - **Depth-layer overlap**: rays see past shorter buildings and keep drawing taller towers rising behind them (up to 3 layers per column).
 - **Pseudo-volumetric props**: vending machines and similar street objects project distinct front/side faces with an angle-dependent corner split — not flat billboards.

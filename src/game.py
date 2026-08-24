@@ -53,8 +53,8 @@ class Game:
         # Mute-default per roadmap NEXT.4: opt in with --audio or the V key
         self.soundscape = SoundscapeManager(enabled=use_audio)
 
-        # World & Camera
-        self.city_map = CityMap(width=42, height=42)
+        # World & Camera (CityMap default is a 320x320 m metropolis)
+        self.city_map = CityMap()
         # Spawn player in Cyber-Downtown near avenue
         self.camera = Camera(x=12.5, y=6.5, fov_deg=70.0)
         self.camera.set_direction(math.pi / 2.0)  # Face South (+Y) down avenue
@@ -361,8 +361,7 @@ class Game:
 
         # Actions & System Toggles
         if self.keyboard.has_event(KeyAction.TOGGLE_MAP):
-            self.hud.show_minimap = not self.hud.show_minimap
-            self.hud.set_notification(f"GPS RADAR: {'ENABLED' if self.hud.show_minimap else 'DISABLED'}")
+            self.hud.cycle_minimap()
         if self.keyboard.has_event(KeyAction.TOGGLE_TIME):
             self.day_night.time_of_day = (self.day_night.time_of_day + 4.0) % 24.0
             self.hud.set_notification(f"TIME SKIPPED // {self.day_night.get_time_string()}")

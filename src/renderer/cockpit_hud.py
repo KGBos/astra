@@ -94,13 +94,13 @@ class CockpitHUD:
             buffer.draw_string(cx, dash_y0 + 2, wheel_center, (0, 240, 255), dash_bg_col)
 
         # 4. Left Instrument Cluster (Speedometer & Gear)
-        speed_mph = int(abs(vehicle_ctrl.speed) * 9.5)
+        speed_kmh = int(abs(vehicle_ctrl.speed) * 3.6)
         gear = vehicle_ctrl.gear
         gear_display = f"[P] [{'R*' if gear == 'R' else 'R'}] [N] [{'D*' if gear == 'D' else 'D'}]"
-        speed_bars = "█" * int(min(12, speed_mph // 5))
+        speed_bars = "█" * int(min(12, speed_kmh // 5))
 
         if dash_y0 + 1 < h:
-            buffer.draw_string(2, dash_y0 + 1, f"SPEED: {speed_mph:02d} MPH [{speed_bars:<12}]", (0, 255, 200), dash_bg_col)
+            buffer.draw_string(2, dash_y0 + 1, f"SPEED: {speed_kmh:03d} KM/H [{speed_bars:<12}]", (0, 255, 200), dash_bg_col)
         if dash_y0 + 2 < h:
             buffer.draw_string(2, dash_y0 + 2, f"GEAR : {gear_display}  VEHICLE: {v.vtype.value}", (255, 220, 80), dash_bg_col)
 

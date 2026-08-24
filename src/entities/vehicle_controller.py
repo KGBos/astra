@@ -26,9 +26,9 @@ class VehicleController:
         self.current_vehicle: Optional[Vehicle] = None
         self.gear = "D"  # P, R, N, D
         self.steering_angle = 0.0  # [-1.0, 1.0]
-        self.speed = 0.0  # units per sec
+        self.speed = 0.0  # metres per second
         self.rpm = 900.0  # idle RPM
-        self.max_forward_speed = 8.5
+        self.max_forward_speed = 14.0
         self.max_reverse_speed = 3.5
         self.acceleration = 7.0
         self.braking_force = 12.0
@@ -77,20 +77,20 @@ class VehicleController:
         self.rpm = 900.0
         self.siren_active = (vehicle.vtype == VehicleType.POLICE)
 
-        # Set max speed according to vehicle type
+        # Set max speed according to vehicle type (m/s; arterial cruise is 13)
         if vehicle.vtype == VehicleType.POLICE:
-            self.max_forward_speed = 11.5
+            self.max_forward_speed = 16.0
         elif vehicle.vtype == VehicleType.CYBER_SEDAN:
-            self.max_forward_speed = 10.0
+            self.max_forward_speed = 14.0
         elif vehicle.vtype == VehicleType.TAXI:
-            self.max_forward_speed = 8.5
+            self.max_forward_speed = 12.0
         elif vehicle.vtype == VehicleType.BUS:
-            self.max_forward_speed = 6.0
+            self.max_forward_speed = 9.0
 
-        # Snap camera inside vehicle cockpit (eye height slightly lower for car seating)
+        # Snap camera inside vehicle cockpit (seated eye ~1.0 m)
         camera.pos.x = vehicle.x
         camera.pos.y = vehicle.y
-        camera.eye_height = 0.42
+        camera.eye_m = Camera.SEATED_EYE_M
         # Cancel any mid-air jump state before locking into the cockpit
         camera.is_jumping = False
         camera.z_velocity = 0.0
@@ -103,7 +103,7 @@ class VehicleController:
             return
 
         # Restore normal pedestrian eye height
-        camera.eye_height = 0.5
+        camera.eye_m = Camera.EYE_HEIGHT_M
         # Headlights switch off as soon as the driver steps out
         camera.headlights_on = False
         # Place player slightly to the sidewalk side of the car

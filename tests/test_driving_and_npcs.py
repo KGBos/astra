@@ -58,7 +58,7 @@ class TestDrivingAndNPCs(unittest.TestCase):
         self.ctrl.exit_vehicle(self.camera)
         self.assertFalse(self.ctrl.is_driving)
         self.assertEqual(self.ctrl.speed, 0.0)
-        self.assertAlmostEqual(self.camera.eye_height, 0.5)
+        self.assertAlmostEqual(self.camera.eye_m, Camera.EYE_HEIGHT_M)
 
     def test_npc_pedestrians_and_dialogue(self):
         npcs = build_default_npcs()

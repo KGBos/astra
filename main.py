@@ -49,7 +49,7 @@ Controls:
   [L]              Toggle Vehicle Headlights (auto-on while driving)
   [N]              Procedurally Re-synthesize New City
   [U]              Cycle & Inspect City Landmarks (POI)
-  [M]              Toggle Mini-Map Radar
+  [M]              Cycle GPS Radar (OFF / NEAR 31m / FAR 95m)
   [T]              Advance Time of Day
   [R]              Toggle Weather (Clear / Rain)
   [B]              Toggle Tactical Beam

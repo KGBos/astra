@@ -81,7 +81,7 @@ def _ramen_counter_sprite(x: float, y: float) -> List[Sprite]:
         [(100, 60, 30) for _ in range(20)]
     ]
     return [Sprite(x, y, "RAMEN_BAR", chars, fg,
-                   scale_x=1.2, scale_y=0.7, is_luminous=True)]
+                   scale_x=0.12, scale_y=0.3, is_luminous=True)]
 
 
 def _arcade_cabinet_sprite(x: float, y: float) -> List[Sprite]:
@@ -98,7 +98,7 @@ def _arcade_cabinet_sprite(x: float, y: float) -> List[Sprite]:
         [(50, 255, 150) for _ in range(18)]
     ]
     return [Sprite(x, y, "ARCADE_CABINET", chars, fg,
-                   scale_x=1.1, scale_y=0.7, is_luminous=True)]
+                   scale_x=0.09, scale_y=0.45, is_luminous=True)]
 
 
 def _hotel_desk_sprite(x: float, y: float) -> List[Sprite]:
@@ -115,7 +115,7 @@ def _hotel_desk_sprite(x: float, y: float) -> List[Sprite]:
         [(150, 120, 70) for _ in range(18)]
     ]
     return [Sprite(x, y, "HOTEL_DESK", chars, fg,
-                   scale_x=1.2, scale_y=0.7, is_luminous=True)]
+                   scale_x=0.14, scale_y=0.5, is_luminous=True)]
 
 
 # Storefront catalog ported from the M2 branch's build_interiors_catalog()

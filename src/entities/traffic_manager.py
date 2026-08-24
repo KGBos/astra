@@ -6,7 +6,7 @@ import math
 import random
 from typing import List, Tuple, Optional
 from src.entities.sprite import Sprite, make_streetlamp_sprite, make_tree_sprite, make_fire_hydrant_sprite
-from src.entities.car import Vehicle, VehicleType
+from src.entities.car import Vehicle, VehicleType, cruise_speed_for
 from src.entities.npc import NPC, build_default_npcs
 
 
@@ -57,7 +57,12 @@ class TrafficManager:
             candidates.append((random.uniform(3, self.city_map.width - 4), row + 1.5, random.choice(vtypes), (-1, 0)))
         random.shuffle(candidates)
         for x, y, vtype, heading in candidates[:max(0, count)]:
-            self.vehicles.append(Vehicle(x, y, vtype, heading))
+            vehicle = Vehicle(x, y, vtype, heading)
+            cruise = cruise_speed_for(self.city_map, x, y, heading)
+            vehicle.speed = cruise
+            vehicle.target_speed = cruise
+            vehicle.current_speed = cruise * 0.5
+            self.vehicles.append(vehicle)
 
     def update(self, dt: float):
         for vehicle in self.vehicles:
