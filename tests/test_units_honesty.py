@@ -351,7 +351,7 @@ class TestTrafficSpeeds(unittest.TestCase):
         speed = cruise_speed_for(cm, x, 80.5, (0, 1))
         self.assertEqual(speed, CRUISE_BY_CLASS["ARTERIAL"])
 
-    def test_cruise_lookup_prefers_containing_band_160x160(self):
+    def test_cruise_lookup_prefers_containing_band(self):
         """A coordinate inside a segment band uses that segment's class even
         when another centre-line is marginally nearer."""
         cm = CityMap(width=42, height=42, seed=5)
