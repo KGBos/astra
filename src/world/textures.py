@@ -566,12 +566,56 @@ def build_hotel_interior() -> AsciiTexture:
     return AsciiTexture("HOTEL_INTERIOR", 8, 8, chars, fg, bg, height_mult=4.0)
 
 
+def build_tower_lobby_interior() -> AsciiTexture:
+    """Double-height tower lobby wall: polished granite piers, glowing directory
+    board, and a brass wainscot rail. The 8 m height_mult is what gives the
+    interior its tall-volume feel when projected."""
+    w, h = 8, 8
+    chars = [
+        "|######|",
+        "|[DIR] |",
+        "|=....=|",
+        "|=....=|",
+        "|------|",
+        "|[REC] |",
+        "|=....=|",
+        "========"
+    ]
+    fg_colors = []
+    bg_colors = []
+    for y in range(h):
+        fg_row = []
+        bg_row = []
+        for x in range(w):
+            c = chars[y][x]
+            if y == 0 or c == '#':
+                fg_row.append((0, 240, 255))    # sky-lit clerestory strip
+                bg_row.append((12, 34, 44))
+            elif c in ('[', ']'):
+                fg_row.append((120, 255, 200))  # glowing directory glass
+                bg_row.append((10, 40, 34))
+            elif c == '.':
+                fg_row.append((188, 192, 200))  # polished granite
+                bg_row.append((40, 42, 48))
+            elif c == '-':
+                fg_row.append((212, 175, 55))   # brass rail
+                bg_row.append((60, 46, 18))
+            else:
+                fg_row.append((150, 148, 142))  # stone reveal
+                bg_row.append((30, 31, 36))
+        fg_colors.append(fg_row)
+        bg_colors.append(bg_row)
+    return AsciiTexture("TOWER_LOBBY_INTERIOR", w, h, chars,
+                        fg_colors, bg_colors, height_mult=8.0)
+
+
 def build_interior_textures() -> Dict[int, AsciiTexture]:
     """Themed interior wall textures for enterable buildings."""
     return {
         101: build_ramen_interior(),
         102: build_arcade_interior(),
         103: build_hotel_interior(),
+        104: build_tower_lobby_interior(),
     }
 
 

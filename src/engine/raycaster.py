@@ -13,7 +13,7 @@ from src.world.interiors import WALL_TYPE_INTERIOR
 from src.world.day_night import DayNightCycle
 from src.world.weather import WeatherSystem
 from src.entities.sprite import Sprite, VolumetricSprite
-from src.renderer.screen_buffer import ScreenBuffer
+from src.renderer.screen_buffer import ScreenBuffer, ASCII_TRANSLATION
 
 
 def _blend_color(c1: Tuple[int, int, int], c2: Tuple[int, int, int], factor: float) -> Tuple[int, int, int]:
@@ -254,6 +254,13 @@ class Raycaster:
         window_dist = 0.0   # perp distance of the portal plane, once crossed
         frame_count = 0     # synthetic window-frame layers (exempt from MAX_LAYERS)
 
+        # Raw-grid solid probes: the real CityMap exposes its wall lists, so
+        # the DDA hot loop skips per-cell method dispatch; InteriorView and
+        # other duck-typed maps keep the is_solid fallback.
+        walls_grid = getattr(city_map, 'walls', None)
+        map_w = getattr(city_map, 'width', 0)
+        map_h = getattr(city_map, 'height', 0)
+
         # A layer whose projected top reaches above the screen top hides every
         # farther candidate; used to bail out of all remaining scanning
         covered_top = False
@@ -299,7 +306,14 @@ class Raycaster:
                 window_dist = marched
                 continue
 
-            if not city_map.is_solid(map_x, map_y):
+            if walls_grid is not None:
+                if 0 <= map_x < map_w and 0 <= map_y < map_h:
+                    solid = walls_grid[map_y][map_x] > 0
+                else:
+                    solid = True
+            else:
+                solid = city_map.is_solid(map_x, map_y)
+            if not solid:
                 continue
 
             wall_type = city_map.get_wall_type(map_x, map_y)
@@ -340,7 +354,14 @@ class Raycaster:
                     side = 1
                     marched = side_dist_y - delta_dist_y
                 extra += 1
-                if not city_map.is_solid(map_x, map_y):
+                if walls_grid is not None:
+                    if 0 <= map_x < map_w and 0 <= map_y < map_h:
+                        solid = walls_grid[map_y][map_x] > 0
+                    else:
+                        solid = True
+                else:
+                    solid = city_map.is_solid(map_x, map_y)
+                if not solid:
                     if extra >= 40:
                         break
                     continue
@@ -374,9 +395,13 @@ class Raycaster:
         while t <= self.FAR_MAX_DIST:
             px = camera.pos.x + ray_dir_x * t
             py = camera.pos.y + ray_dir_y * t
-            if city_map.is_solid(px, py):
-                fx = int(px)
-                fy = int(py)
+            fx = int(px)
+            fy = int(py)
+            if walls_grid is not None:
+                solid = not (0 <= fx < map_w and 0 <= fy < map_h) or walls_grid[fy][fx] > 0
+            else:
+                solid = city_map.is_solid(px, py)
+            if solid:
                 wall_type = city_map.get_wall_type(fx, fy)
                 wall_h = city_map.get_wall_height(wall_type)
                 if wall_h > max_height + 1e-6 or not layers:
@@ -576,11 +601,29 @@ class Raycaster:
         ppm: float,
         buffer: ScreenBuffer
     ):
+        """Sky gradient and perspective floor-caster.
+
+        Hot-path notes (profile-guided, M5 Cycle C): sky rows are row-constant,
+        so stars are solved analytically -- (x*17 + y*31) % 67 == 0 has exactly
+        one solution mod 67 (x == 10*y) -- instead of testing every pixel; the
+        floor caster reads raw grid lists directly when the active map is the
+        real CityMap (InteriorView keeps the duck-typed method fallback), and
+        paints through direct pixel writes.
+        """
         is_night = day_night.time_of_day > 20.0 or day_night.time_of_day < 5.0
         wetness = weather.wetness if weather else 0.0
 
+        # Star columns repeat every 67 pixels: x*17 == -31*y (mod 67) and
+        # 17 * 4 == 68 == 1 (mod 67), so x == 10*y (mod 67).
+        STAR_STEP = 67
+        draw_stars = is_night and lightning_intensity < 0.1
+        twinkle_fg = (240, 240, 255)
+        plain_fg = (100, 100, 120)
+
         # Sky rows (above horizon); gradient is row-constant, so it is
         # computed once per row rather than once per cell
+        pixels = buffer.pixels
+        width = self.width
         for y in range(0, max(0, min(self.height, horizon_y))):
             t = y / float(max(1, horizon_y))
             r = int(zenith_col[0] + (horizon_col[0] - zenith_col[0]) * t)
@@ -594,49 +637,69 @@ class Raycaster:
             if weather and weather.fog_density > 0.04:
                 sky_col = _blend_color(sky_col, weather.fog_color, min(0.85, weather.fog_density * 6.0))
 
-            star_base = y * 31
-            twinkle_fg = (240, 240, 255)
-            plain_fg = (100, 100, 120)
-            for x in range(self.width):
-                char = ' '
-                if is_night and lightning_intensity < 0.1 and ((x * 17 + star_base) % 67 == 0):
-                    char = '.' if (x + y) % 2 == 0 else '*'
-                    buffer.set_pixel(x, y, char, twinkle_fg, sky_col)
+            row = pixels[y]
+            star_x = (10 * y) % STAR_STEP if draw_stars else -1
+            star_alt = (star_x + y) % 2 == 0
+            for x in range(width):
+                p = row[x]
+                p.bg = sky_col
+                if x == star_x:
+                    p.char = '.' if star_alt else '*'
+                    p.fg = twinkle_fg
+                    star_x += STAR_STEP
+                    star_alt = not star_alt
                 else:
-                    buffer.set_pixel(x, y, char, plain_fg, sky_col)
+                    p.char = ' '
+                    p.fg = plain_fg
 
         # Floor rows (below horizon)
+        floors_grid = getattr(city_map, 'floors', None)
+        map_w = getattr(city_map, 'width', 0)
+        map_h = getattr(city_map, 'height', 0)
+        get_floor_type = city_map.get_floor_type
+
+        ascii_translate = None if buffer.use_color else ASCII_TRANSLATION.get
+        eye_m = camera.eye_m
+
+        ray_dir_x0 = camera.dir.x - camera.plane.x
+        ray_dir_y0 = camera.dir.y - camera.plane.y
+        ray_dir_x1 = camera.dir.x + camera.plane.x
+        ray_dir_y1 = camera.dir.y + camera.plane.y
+        span_step_x = (ray_dir_x1 - ray_dir_x0) / float(self.width)
+        span_step_y = (ray_dir_y1 - ray_dir_y0) / float(self.width)
+
+        fog_color = weather.fog_color if weather else (0, 0, 0)
+        fog_density = weather.fog_density if weather else 0.0
+
         for y in range(max(0, horizon_y), self.height):
             dy = float(y - horizon_y)
             if dy <= 0.0:
                 continue
 
-            row_dist = (ppm * camera.eye_m) / dy
+            row_dist = (ppm * eye_m) / dy
             floor_shade = clamp((1.0 / (1.0 + 0.1 * row_dist + 0.008 * row_dist * row_dist)) * ambient, 0.1, 1.0)
 
-            ray_dir_x0 = camera.dir.x - camera.plane.x
-            ray_dir_y0 = camera.dir.y - camera.plane.y
-            ray_dir_x1 = camera.dir.x + camera.plane.x
-            ray_dir_y1 = camera.dir.y + camera.plane.y
-
-            step_x = row_dist * (ray_dir_x1 - ray_dir_x0) / float(self.width)
-            step_y = row_dist * (ray_dir_y1 - ray_dir_y0) / float(self.width)
+            floor_fog = 0.0
+            if fog_density > 0:
+                floor_fog = clamp(1.0 - math.exp(-row_dist * fog_density), 0.0, 0.95)
+            has_floor_fog = floor_fog > 0.0 and weather is not None
 
             floor_x = camera.pos.x + row_dist * ray_dir_x0
             floor_y = camera.pos.y + row_dist * ray_dir_y0
+            step_x = row_dist * span_step_x
+            step_y = row_dist * span_step_y
 
-            floor_fog = 0.0
-            if weather and weather.fog_density > 0:
-                floor_fog = clamp(1.0 - math.exp(-row_dist * weather.fog_density), 0.0, 0.95)
-
-            has_floor_fog = floor_fog > 0.0 and weather is not None
-            get_floor_type = city_map.get_floor_type
-            set_pixel = buffer.set_pixel
-            fog_color = weather.fog_color if weather else (0, 0, 0)
-            for x in range(self.width):
+            row = pixels[y]
+            for x in range(width):
                 cell_x = int(floor_x)
                 cell_y = int(floor_y)
-                ftype = get_floor_type(cell_x, cell_y)
+                if floors_grid is not None:
+                    if 0 <= cell_x < map_w and 0 <= cell_y < map_h:
+                        ftype = floors_grid[cell_y][cell_x]
+                    else:
+                        ftype = FloorType.SIDEWALK
+                else:
+                    ftype = get_floor_type(cell_x, cell_y)
 
                 fx_frac = floor_x - cell_x
                 fy_frac = floor_y - cell_y
@@ -699,10 +762,24 @@ class Raycaster:
                         bg = (int(45 * floor_shade), int(45 * floor_shade), int(50 * floor_shade))
 
                 if has_floor_fog:
-                    fg = _blend_color(fg, fog_color, floor_fog)
-                    bg = _blend_color(bg, fog_color, floor_fog)
+                    # Inline of _blend_color(c, fog_color, floor_fog): the fog
+                    # factor is row-constant and pre-clamped, and the arithmetic
+                    # order matches _blend_color exactly (bit-identical output)
+                    fr, fg_g, fb_b = fog_color
+                    fg = (int(fg[0] + (fr - fg[0]) * floor_fog),
+                          int(fg[1] + (fg_g - fg[1]) * floor_fog),
+                          int(fg[2] + (fb_b - fg[2]) * floor_fog))
+                    bg = (int(bg[0] + (fr - bg[0]) * floor_fog),
+                          int(bg[1] + (fg_g - bg[1]) * floor_fog),
+                          int(bg[2] + (fb_b - bg[2]) * floor_fog))
 
-                set_pixel(x, y, char, fg, bg)
+                if ascii_translate is not None and not char.isascii():
+                    char = ascii_translate(char, '?')
+
+                p = row[x]
+                p.char = char
+                p.fg = fg
+                p.bg = bg
                 floor_x += step_x
                 floor_y += step_y
 

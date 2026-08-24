@@ -20,3 +20,16 @@ jobs:
         run: python -m compileall -q main.py src tests
       - name: Unit tests
         run: python -m unittest discover -s tests -v
+
+  benchmark:
+    # M5 Cycle C perf-budget watch: reports the FPS matrix on every push/PR.
+    # Runner hardware varies, so numbers are informational -- the job fails
+    # only on crashes or when any viewport drops below the generous floor.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Benchmark matrix (80x32 / 120x40 / 160x50)
+        run: python tools/bench_matrix.py

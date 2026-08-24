@@ -20,35 +20,50 @@ ARTERIAL_CRUISE = 13.0
 COLLECTOR_CRUISE = 9.0
 ALLEY_CRUISE = 5.0
 
+CRUISE_BY_CLASS = {
+    "ARTERIAL": ARTERIAL_CRUISE,
+    "COLLECTOR": COLLECTOR_CRUISE,
+    "LOCAL": ALLEY_CRUISE,
+}
+
 
 def cruise_speed_for(city_map, x: float, y: float, heading_dir: Tuple[int, int]) -> float:
     """Cruise speed in m/s for the road a vehicle occupies.
 
-    Interim index heuristic over ns_road_cols/ew_road_rows (every fourth line
-    arterial 13 m/s, every second of the rest collector 9 m/s, else alley
-    5 m/s). Generator v2 now exposes the real classes via city_map.road_lanes();
-    consuming them lands with the Cycle C traffic retune.
+    Looks up the measured road hierarchy exposed by generator v2
+    (city_map.road_segments): the segment on the travel axis whose carriageway
+    band contains the cross-axis coordinate wins; the nearest centre-line is
+    the fallback for gaps. Class maps to arterial 13 / collector 9 / local
+    5 m/s.
     """
     dx, dy = heading_dir
-    if dy != 0:
-        coords = getattr(city_map, 'ns_road_cols', [])
-        coord = int(x)
-    else:
-        coords = getattr(city_map, 'ew_road_rows', [])
-        coord = int(y)
-    if not coords:
+    segments = getattr(city_map, 'road_segments', None)
+    if not segments:
         return COLLECTOR_CRUISE
-    idx = 0
-    for i, c in enumerate(coords):
-        if c <= coord:
-            idx = i
-        else:
-            break
-    if idx % 4 == 0:
-        return ARTERIAL_CRUISE
-    if idx % 2 == 0:
+    axis = "NS" if dy != 0 else "EW"
+    coord = x if dy != 0 else y
+
+    band_seg = None
+    band_width = None
+    near_seg = None
+    near_dist = None
+    for seg in segments:
+        if seg.axis != axis:
+            continue
+        dist = abs(seg.center - coord)
+        if near_dist is None or dist < near_dist:
+            near_dist = dist
+            near_seg = seg
+        lo = seg.center - seg.width // 2
+        hi = lo + seg.width - 1
+        if lo <= coord <= hi and (band_width is None or seg.width < band_width):
+            band_seg = seg
+            band_width = seg.width
+
+    best_seg = band_seg if band_seg is not None else near_seg
+    if best_seg is None:
         return COLLECTOR_CRUISE
-    return ALLEY_CRUISE
+    return CRUISE_BY_CLASS.get(best_seg.road_class, COLLECTOR_CRUISE)
 
 
 class Vehicle:
@@ -62,6 +77,12 @@ class Vehicle:
         self.current_speed = self.speed
         self.stopped = False
         self.siren_tick = 0.0
+        # Lane provenance stamped by the spawner (None for hand-placed vehicles):
+        # road class of the carrier segment plus the designed lane geometry
+        self.road_class = None
+        self.lane_axis = None
+        self.lane_center_m = None
+        self.lane_offset_m = None
 
         # Colors based on vehicle type
         self.primary_color = (255, 200, 0) if vtype == VehicleType.TAXI else (

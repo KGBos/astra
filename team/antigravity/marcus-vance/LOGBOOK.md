@@ -21,3 +21,12 @@
   - **Radio Stations & Acoustic Sound**: Implemented 4 procedurally generated radio stations with track rotations and animated ASCII equalizer visualizer in HUD.
   - **High-Beam Headlights**: Added forward conical lighting projection in raycaster for night illumination.
   - Verified with **22 / 22 unit tests passing** and benchmarked at **254+ FPS**.
+
+## Shift 6 — M5 Cycle C "Density & Budget" (worktree `.worktrees/citylife`, branch `cycle-c-density-perf`)
+- **Action**: Final M5 build cycle on top of Cycle B's generator v2 lane geometry.
+- **Achievements**:
+  - **Lane-accurate traffic**: `TrafficManager` spawns from `CityMap.road_lanes()` bands with right-hand heading derivation; `cruise_speed_for` replaced the every-4th-column heuristic with real road-class lookup (arterial 13 / collector 9 / local 5 m/s); fleet budget = total lane-length / 120 clamped [24, 80]; drivable-floor guard retained.
+  - **District pedestrian density**: single-pass direct-grid walkable survey (~10 ms @320²); dense districts ~1 ped/900 m², industrial/waterfront ~1/2700 m²; largest-remainder district quotas; auto count clamped [40, 140].
+  - **Tower lobbies**: `LobbySpace` (8 m ceiling texture id 104) for >=25 m wall masses, entered through street-reachable tower doorways (bounded BFS rejects sealed podium moats); wired into Nora's doorway detection + game enter/exit flow.
+  - **Perf budget**: cProfile pass @160×50 — floor-caster was 73% of frame; applied analytic star columns, row-hoisted ray spans, raw-grid solid/floor probes, inline row-constant fog blend: 66.6 → 107.5 FPS profiled, 8.6M → 2.6M function calls. Added `tools/bench_matrix.py` + CI `benchmark` job (fails only on crash or <30 FPS).
+  - Verified with **198 tests green**; benchmarks 459 FPS @80×32, 202 FPS median @160×50 (×5 runs); 320² generation ~30 ms.

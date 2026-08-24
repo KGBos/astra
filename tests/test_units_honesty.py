@@ -24,6 +24,7 @@ from src.entities.car import (
     ARTERIAL_CRUISE,
     COLLECTOR_CRUISE,
     ALLEY_CRUISE,
+    CRUISE_BY_CLASS,
     cruise_speed_for,
 )
 from src.entities.vehicle_controller import VehicleController
@@ -315,17 +316,50 @@ class TestDeterminismAt320(unittest.TestCase):
 
 class TestTrafficSpeeds(unittest.TestCase):
     def test_cruise_classes_from_grid_hierarchy(self):
-        cm = CityMap(width=42, height=42, seed=5)
-        cols = cm.ns_road_cols
-        self.assertAlmostEqual(cruise_speed_for(cm, cols[0] + 0.5, 20.5, (0, 1)),
-                               ARTERIAL_CRUISE)
-        self.assertAlmostEqual(cruise_speed_for(cm, cols[2] + 0.5, 20.5, (0, 1)),
-                               COLLECTOR_CRUISE)
-        self.assertAlmostEqual(cruise_speed_for(cm, cols[1] + 0.5, 20.5, (0, 1)),
-                               ALLEY_CRUISE)
+        """Cruise classes come from the measured road hierarchy: every segment
+        line's cruise speed equals its class constant (arterial 13, collector
+        9, local alley 5 m/s), in both travel directions."""
+        cm = CityMap(width=160, height=160, seed=0)
+        segments = cm.road_segments
+        self.assertTrue(segments, "generator v2 exposed no road segments")
+        seen_classes = set()
+        for seg in segments:
+            expected = CRUISE_BY_CLASS[seg.road_class]
+            seen_classes.add(seg.road_class)
+            if seg.axis == "NS":
+                x, y = seg.center + 0.5, 80.5
+                south, north = (0, 1), (0, -1)
+            else:
+                x, y = 80.5, seg.center + 0.5
+                south, north = (1, 0), (-1, 0)
+            self.assertAlmostEqual(cruise_speed_for(cm, x, y, south), expected,
+                                   msg=f"{seg.axis} {seg.road_class} at {seg.center}")
+            self.assertAlmostEqual(cruise_speed_for(cm, x, y, north), expected)
+        # The seeded town must exercise every class for this contract
+        self.assertEqual(seen_classes, {"ARTERIAL", "COLLECTOR", "LOCAL"})
         self.assertAlmostEqual(ARTERIAL_CRUISE, 13.0)
         self.assertAlmostEqual(COLLECTOR_CRUISE, 9.0)
         self.assertAlmostEqual(ALLEY_CRUISE, 5.0)
+
+    def test_cruise_lookup_prefers_containing_band(self):
+        """A coordinate inside a segment band uses that segment's class even
+        when another centre-line is marginally nearer."""
+        cm = CityMap(width=160, height=160, seed=0)
+        arterial = next(s for s in cm.road_segments if s.road_class == "ARTERIAL")
+        lo = arterial.center - arterial.width // 2
+        x = lo + 0.5                                     # inner edge of band
+        speed = cruise_speed_for(cm, x, 80.5, (0, 1))
+        self.assertEqual(speed, CRUISE_BY_CLASS["ARTERIAL"])
+
+    def test_cruise_lookup_prefers_containing_band(self):
+        """A coordinate inside a segment band uses that segment's class even
+        when another centre-line is marginally nearer."""
+        cm = CityMap(width=42, height=42, seed=5)
+        arterial = next(s for s in cm.road_segments if s.road_class == "ARTERIAL")
+        lo = arterial.center - arterial.width // 2
+        x = lo + 0.5                                     # inner edge of band
+        speed = cruise_speed_for(cm, x, 20.5, (0, 1))
+        self.assertEqual(speed, CRUISE_BY_CLASS["ARTERIAL"])
 
     def test_controller_top_speeds_are_ms(self):
         ctrl = VehicleController()
