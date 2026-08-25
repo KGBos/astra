@@ -8,6 +8,7 @@ Astra 3D is a pure ASCII 3D first-person open-world city exploration game and re
 2. **Never Block Input or Tear Frames**: Frame rendering must be strictly double-buffered with sub-millisecond non-blocking input polling and locked target framerates (30–60 FPS).
 3. **Never Degrade Terminal State**: Always safely restore terminal mode (cursor visibility, echo, canonical mode, alternate screen buffer) upon exit, interrupt (Ctrl+C), or unexpected errors.
 4. **Clean Domain Separation**: Keep the mathematical raycasting engine, world/map representation, entity/traffic simulation, and terminal rendering pipeline modular and independently testable.
+5. **Never Push Directly to Master**: `master` is a protected release branch. ALL work must land through reviewed pull requests from feature branches (`feature/*`, `.worktrees/*`). Direct pushes, force-pushes, and history rewrites against `master` are strictly forbidden — every PR requires a green test suite and a review sign-off before merge.
 
 ## 3. Organization Structure & Platforms
 Work is organized into self-contained Platforms corresponding to each agentic platform:
