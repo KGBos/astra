@@ -44,11 +44,55 @@ harness to reproduce every runtime claim before recording it. Scratch harness de
 - Terminal restore — verified clean under pty on uncaught exception, SIGTERM, and
   `sys.exit`. Guardrail #3 holds.
 
-### Recommended next
-Perf recovery to 60 FPS @160×50 is the one item that is a live guardrail breach; it
-should lead. Determinism fix is small and self-contained. Doc re-baselining is a
-one-shift chore. Seam extraction on `raycaster.py` (1,701 lines) and
-`procedural_gen.py` (1,576 lines) is the structural work I want to own next, but it
-should follow the perf fix so we refactor against a known-good frame time.
+---
 
-Awaiting Leon's call on sequencing.
+## Shift 1 (cont.) — v1.0 Production Plan
+
+Leon asked for a concrete, pickable plan to take Astra 3D to production, with visual
+fidelity as the priority and an explicit goal of generalising this into an engine that
+can render *any* 3D environment.
+
+### Delivered
+- `docs/ROADMAP_PRODUCTION.md` — 5 phases, 10 exit criteria, feature-gap analysis.
+- `docs/DESIGN_LOD_FIDELITY.md` — full design for distance-adaptive detail.
+- `docs/DESIGN_ENGINE_API.md` — `Scene` protocol and material registry.
+- `team/TASKBOARD.md` — 32 tickets, each with branch, owned files, deps, acceptance.
+- `STATUS.md` NOW section repointed at the push; BULLETIN announcements posted.
+
+### The fidelity finding that shaped the plan
+I measured the actual texel-to-cell ratio rather than reasoning about it. With
+`ppm = 57.13` at 160×50, an 11 m facade's break-even — one authored texel per character
+cell — lands at **~78 m**. Nearer than that we are magnifying: 2.5 cells/texel at 32 m,
+9.8 at 8 m, **39.3 at 2 m**. So the whole playable near field is under-detailed and gets
+worse as you approach, which is exactly inverted from what Leon wants. It is a texture
+magnification problem, and the fix is a mip pyramid with the level chosen per column,
+plus a near-field decal layer for discrete features and quadrant blocks for sub-cell
+resolution. Detail must be hashed on world UV, never screen space, or it crawls — that
+is the one property that decides whether this feature is worth shipping.
+
+### The engine finding
+Better news than expected. `Raycaster` needs exactly **four methods** from the world
+(`is_solid`, `get_wall_type`, `get_wall_height`, `get_floor_type`) and `Camera` needs
+one. `InteriorView` already substitutes for `CityMap` at that boundary — we have two
+scene implementations today and never noticed. The engine is already scene-agnostic; it
+simply has no declared contract. That makes Leon's "any 3D environment" goal a
+formalisation job, not a rewrite.
+
+### Sequencing decisions I made and why
+- **Seam split before perf work, not after.** Once `raycaster.py` is split, the three
+  perf tickets live in different files and run in genuinely parallel worktrees. Doing
+  perf first would have three agents fighting over one 1,700-line file.
+- **Golden-frame harness before the seam split.** A structural move that changes a pixel
+  is a silent regression; unit tests will not catch it. T-02 gates T-04 and T-29.
+- **Material registry before LOD.** Mip pyramids and decal tables need a home, and the
+  registry also kills the `WALL_PERIMETER`/`WALL_WAREHOUSE` collision on the way.
+- **Perf recovery before fidelity.** LOD spends frame budget we are already over.
+
+### Open questions raised for Leon
+Windows scope, audio hardening vs. experimental label, what to do with Nora's 24
+unmerged commits (they overlap Phase 3 territory and are the biggest sequencing risk on
+the board), and whether quadrant block glyphs fit the "pure ASCII" identity.
+
+### Next for me
+T-04 (raycaster seam split) once T-02 lands. Until then the board is open and I am
+reviewing claims.
