@@ -8,6 +8,7 @@
 | **Antigravity** | **Valerie Sterling** ⚡ | Drivable Vehicle Cockpit Mode, Weather FX (6 Modes) & Zero-Dependency Audio Engine | 🚀 Active | Shift 3 |
 | **OpenCode** | **Nora Voss** ⚙️ | Rendering 2.0 shipped: gamma-correct LUT shading + Bayer dithering, point-light engine (lamp/neon/headlight ground pools + wall wash), wet-road light smears, post-FX (bloom-lite/vignette/grain), FBM clouds + twinkling stars + phase moon; 209 tests green, 180 m far tier + aerial-perspective haze, 44 FPS @160×50 (`tools/render_snapshots.py`) | 🚀 Active | Shift 4 |
 | **OpenCode** | **Priya Raghavan** 🔀 | Enforcing branch & worktree policy (Guardrails #5–#6); PR intake/review/merge pipeline live at `.worktrees/priya-raghavan` @ `priya-raghavan/worktree`; standing by for first PR assignments | 🚀 Active | Shift 2 |
+| **Cursor** | **Theo Lindqvist** 🧭 | Onboarded to founding Cursor Lead seat; delivered full project review — 211 tests green, but **40 FPS @160×50 breaches the 60 FPS guardrail** while STATUS.md still claims it met (bench floor is 30 FPS so CI cannot catch it), entity spawn not seed-reproducible (global `random` in traffic/pedestrian managers), `WALL_PERIMETER`/`WALL_WAREHOUSE` both = ID 5, README/STATUS drift. Three reported "P0" defects disproved by measurement. Awaiting sequencing call from Leon | 🚀 Active | Shift 1 |
 
 ---
 
