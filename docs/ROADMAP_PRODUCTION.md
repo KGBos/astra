@@ -17,9 +17,16 @@ v1.0 is three things:
    documented 60 FPS guardrail.
 2. **Detail runs backwards.** Surfaces are least resolved exactly where the player
    spends their time — up close. Measured in `DESIGN_LOD_FIDELITY.md` §1.
-3. **It is a game, not yet an engine.** The renderer is genuinely scene-agnostic
-   already, but nothing declares or enforces that, so no one else can point it at
-   their own world.
+3. **The characters are not doing the work.** Shading, depth and lighting are carried
+   almost entirely by cell background colour; the glyph layer is a texture pattern
+   repeated verbatim. A lit wall and a shadowed wall print identical characters, and 23%
+   of sky cells are a space glyph with a background colour. Strip the fills and the form
+   disappears — which means we are rendering low-resolution pixel art that happens to use
+   letters, not ASCII art. Tickets T-33 → T-35.
+4. **It is a game, not yet an engine.** The renderer is genuinely scene-agnostic
+   already, but nothing declares or enforces that — neither for the world it reads
+   (`Scene`, T-10) nor for the surface it draws to (`Display`, T-36). Formalising both is
+   what makes "any 3D environment, any output target" true rather than aspirational.
 
 Everything below serves those three, plus the polish that turns a working build into
 something you can hand to a stranger.
@@ -32,6 +39,8 @@ something you can hand to a stranger.
 | 2 | Detail increases monotonically as distance decreases | Distance-monotonicity test (T-14) |
 | 3 | No detail crawl during movement | No-crawl test (T-16) |
 | 4 | A third party can render their own world | `GridScene` + authoring guide + worked example |
+| 4b | Form survives with colour switched off | `ascii-mono` golden frames read as 3D (T-33, T-34) |
+| 4c | The output target is swappable | `Display` interface with two working backends (T-36) |
 | 5 | Identical seed reproduces an identical world, entities included | Determinism test (T-08) |
 | 6 | Terminal always restored, on every exit path | pty test matrix (already passing; keep in CI) |
 | 7 | Runs on a bare Python 3.8 with no install step | zipapp artifact built in CI |
@@ -72,8 +81,29 @@ The gap between "runs" and "shippable": in-game help, settings persistence, seed
 bookmarks, objectives, an adaptive-quality governor, colour-depth fallbacks,
 accessibility, crash safety, and the two big seam splits.
 
-### Phase 5 — Release engineering · T-30…T-32
-zipapp packaging, the engine authoring guide, hygiene, and the v1.0 tag.
+### Phase 3b — Render aesthetic · T-33…T-35
+Make the characters carry the form. A per-material luminance→glyph ramp, a sky drawn as
+glyphs rather than background colour, and a formal mode matrix
+(`blocks` / `ascii-color` / `ascii-mono`) where each mode is art-directed on its own terms
+instead of being a subtraction from the filled-cell default. T-33 and T-34 need nothing
+else and can start immediately.
+
+### Phase 2b — Display backend · T-36
+Declare the output contract so the ANSI terminal is one backend rather than the only
+possibility. Cheap now, and it is what makes the terminal-vs-web question reversible.
+
+### Phase 5 — Release engineering · T-30…T-32, T-38, T-39
+zipapp packaging, Windows support, the audio experimental label, the engine authoring
+guide, hygiene, and the v1.0 tag.
+
+### Phase 6 — Beyond the terminal · T-37 (timeboxed spike)
+One shift to build a web canvas backend behind the `Display` interface and report
+measured numbers. The terminal caps us at a fixed font, a ~1:2 cell aspect we can only
+correct for, ~8,000 cells, and ANSI throughput. A canvas controls the font and aspect
+exactly, renders 400×150 glyphs comfortably, can move the glyph atlas to the GPU so frame
+budget stops constraining fidelity, and delivers Windows and mobile for free — while
+remaining 100% ASCII, because the aesthetic is the glyph grid, not the terminal hosting
+it. The spike produces a recommendation, not a migration.
 
 ## 4. Feature gaps found in review
 
@@ -95,14 +125,17 @@ viewport.
 **Accessibility.** No colourblind-safe palettes, no high-contrast mode, and no way to
 disable the grain, bloom, and lightning flashes.
 
-**Platform.** `termios`/`tty` are POSIX-only, so Windows is unsupported. This is
-consistent with the stated macOS/Linux scope and I am **not** proposing it for v1.0 — but
-it should be a conscious decision recorded in the README rather than an accident.
+**Platform.** `termios`/`tty` are POSIX-only, so Windows is unsupported today. Leon has
+confirmed Windows is wanted, and it is genuinely modest and stdlib-only: an `msvcrt` input
+backend, `ctypes` to enable VT processing, and polled resize in place of `SIGWINCH`.
+Scheduled as T-38 *after* the `Display` interface exists, so it is a backend rather than a
+bespoke port — and note that T-37's web backend would deliver Windows as a side effect.
 
-**Audio.** The soundscape shells out to external players (`afplay`, `paplay`) via
-`subprocess`, re-running `which` on every play, and synthesises the sound bank on the
-calling thread when unmuted. It is mute-by-default, which is the right call. For v1.0 it
-should either be hardened or labelled experimental — not left ambiguous.
+**Audio.** Decided: **experimental for v1.0** (T-39). It shells out to external players
+(`afplay`, `paplay`) via `subprocess`, re-runs `which` on every play, and synthesises the
+sound bank on the calling thread when unmuted. It stays mute-default and gets labelled
+honestly; the only work in scope is moving synthesis off the calling thread and caching the
+player probe, so it cannot hitch a frame. Visuals come first.
 
 ## 5. How the team picks this up
 

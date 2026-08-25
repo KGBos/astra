@@ -96,3 +96,75 @@ the board), and whether quadrant block glyphs fit the "pure ASCII" identity.
 ### Next for me
 T-04 (raycaster seam split) once T-02 lands. Until then the board is open and I am
 reviewing claims.
+
+---
+
+## Shift 2 — Nora salvage, and the ASCII identity question
+
+Leon answered the four open questions and raised a sharper one about what our ASCII
+rendering actually *is*.
+
+### Nora's branch: evaluated, salvaged, retired
+Delegated to my judgement. I tagged `archive/nora-voss-worktree` before touching
+anything, so all 24 commits remain recoverable.
+
+**Adopted — the far-tier layering fix, and it is a real bug on master.** `raycaster.py`
+had an unconditional `break` on the first solid far cell, so the 180 m far tier could
+only ever return **one** layer per column. That made `max_height` never update and the
+`wall_h > max_height` test guarding the append dead code — a taller tower behind a nearer
+low mass was simply never seen. The whole point of the far tier is skyline depth, and it
+was not working. Measured across a full yaw sweep at spawn: **0 → 268 columns** with
+stacked distant silhouettes, max far layers 1 → 2. Perf-neutral (40.2 → 40.7 FPS at
+160×50). Locked with `tests/test_far_tier_layering.py`, four cases; I verified the test
+fails against unfixed master before trusting it.
+
+**Rejected — the perspective overhaul.** Superseded and actively dangerous to merge. Master
+already has a better projection (`pixels_per_meter_at_1m` derives vertical FOV from the ray
+plane); Nora's is a cruder `(w/2)/plane_len/CELL_ASPECT`. Decisive detail: her branch uses
+the **reciprocal** `CELL_ASPECT` convention (2.0 against master's 0.5), so a merge would
+silently invert vertical scale everywhere. Her branch is also 13 commits behind master,
+predating Rendering 2.0 and the 180 m tier.
+
+**Rejected as files, adopted as data** — `scale.py` and `vehicle_dims.py` are good
+reference tables whose only consumers were her reworks. Landing them now would create a
+second source of truth beside `textures.py` and add dead code. Their values are cited from
+the archive tag by T-09 (materials) and T-20 (sprite LOD) instead. Her two test files
+assert against her projection, but their *intent* — no sunken basements, no hovering
+sprites — is a genuine gap and became acceptance criteria on T-19/T-20.
+
+### The finding that matters more
+Leon said coloured ASCII should mean coloured *characters* on the terminal background, not
+coloured cells, and that cell-fill rendering "is just a pixelated game". He is right, and I
+measured why. `--no-fill` already works mechanically — verified 1,236 → 0 background escape
+sequences. It looks weak for two specific, fixable reasons:
+
+1. **Glyphs encode no luminance.** The character comes straight from the texture pattern,
+   so a lit wall and a shadowed wall both print `#####%######%#%`. Every bit of depth and
+   lighting lives in the colour. Strip the fill and the form goes with it.
+2. **The sky is colour with no character.** 23% of sky cells are a space glyph carrying
+   only a background colour, so with fills off the sky vanishes entirely.
+
+So we have been rendering low-resolution pixel art that happens to use letters. Fixing it
+is T-33 (per-material luminance→glyph ramp) and T-34 (sky drawn as glyph density), then
+T-35 to make the three modes first-class and art-directed rather than subtractions from a
+filled default. Both T-33 and T-34 are unblocked and are, I think, the highest-value
+visual work on the board right now — higher than LOD, because they decide what the pixels
+*mean* before we go and add more of them.
+
+I also corrected T-18's scope: quadrant blocks are Unicode, not ASCII, so they belong to
+`blocks` mode only. In the ASCII modes that near-field resolution has to come from the
+glyph ramp and decals instead.
+
+### Terminal vs. web
+Leon offered to leave the terminal if it is the ceiling. I declined to answer it as a
+binary. The renderer already emits a grid of `(glyph, fg, bg)` cells, which is
+backend-agnostic — so the right move is T-36, a `Display` interface, which is cheap and
+makes the question **reversible instead of a bet**. Then T-37 is a one-shift timeboxed web
+canvas spike that reports measured numbers. The terminal stays the reference backend and
+Guardrail #1 is untouched either way. Windows (T-38) rides the same abstraction, which is
+why I scheduled it after T-36 rather than as a bespoke `msvcrt` port.
+
+### Next for me
+Board is open. My own next pick is still T-04, but if Leon wants the visual payoff first I
+would take T-33 and T-34 myself — they are the shortest path to the game looking like what
+he described.
