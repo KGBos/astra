@@ -109,6 +109,8 @@ class TestVehicleAndAudio(unittest.TestCase):
         self.assertTrue("SPEED" in dash_text or "LEFT" in dash_text or "POLICE" in dash_text)
 
     def test_soundscape_synthesizer(self):
+        # Bank synthesis is asynchronous since T-39; wait for it to land
+        self.soundscape.join_synthesis()
         self.assertIn("horn", self.soundscape.sound_cache)
         self.assertIn("thunder", self.soundscape.sound_cache)
         self.assertIn("chime", self.soundscape.sound_cache)

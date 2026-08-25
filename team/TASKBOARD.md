@@ -97,7 +97,7 @@ commit can be recovered with `git show archive/nora-voss-worktree`.
 | **T-36** | **`Display` backend interface** | **2** | **M** | — | Blocked (T-02) |
 | **T-37** | **Web canvas backend (timeboxed spike)** | **6** | **L** | — | Blocked (T-36) |
 | **T-38** | **Windows support** | **4** | **M** | — | Blocked (T-36) |
-| **T-39** | **Label audio experimental** | **4** | **S** | — | Ready |
+| **T-39** | **Label audio experimental** | **4** | **S** | **Priya Raghavan 🔀** | **In Progress** |
 
 ---
 

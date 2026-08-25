@@ -39,7 +39,7 @@ Three headline problems drive the push:
 1. [x] **Audio reconciled** — `soundscape.py` is the one engine (WAV synth); M2 bell system deleted, radio ported as `RadioTuner`; mute-default with `[V]` toggle and `--audio` opt-in (NEXT.4 satisfied)
 2. [x] **M2 branch merged** — driving mode, NPC dialogue, storefront themes + furniture; conflicts resolved with master-infra-wins doctrine; 129 tests green
 3. [x] **Drivable mode live** — `vehicle_controller.py` wired into the Game loop (F enter/exit), cockpit HUD active, headlights drive-gated; M3-WIP stamps removed
-4. [x] **Soundscape activated** — horn/chime/rev/thud/radio events behind mute-default flag
+4. [x] **Soundscape activated** — horn/chime/rev/thud/radio events behind mute-default flag; labelled **EXPERIMENTAL** for v1.0 (T-39): synthesis runs on a background thread and the system-player probe is cached once
 
 ### LATER — Backlog (unordered)
 - **Performance budget**: lock 60 FPS at 160×50 viewport (current: ~250 FPS @ 80×32 with full feature set)
@@ -61,7 +61,7 @@ Three headline problems drive the push:
 | :--- | :--- | :--- |
 | **M1** | Core raycasting engine, city, traffic, weather, HUD, game loop | ✅ Shipped (v0.4) |
 | **M2** | Driving mode, interiors, NPCs, radio | ✅ Shipped — merged via gate (`merge/m2-integration`) |
-| **M3** | Vehicle integration, cockpit HUD, procedural audio | ✅ Shipped — live in Game loop, mute-default audio |
+| **M3** | Vehicle integration, cockpit HUD, procedural audio | ✅ Shipped — live in Game loop, mute-default audio (experimental) |
 | **M4** | Far-skyline LOD, performance budget | ✅ Shipped — two-tier skyline + 60 FPS @160×50 budget met (medians 196–446 FPS)
 | **M5** | Life-Sized World: 1 tile = 1m, generator v2, mega-map 320², lobbies, lane traffic | ✅ Shipped (v0.6) — spec docs/DESIGN_M5_LIFESIZE.md |
 

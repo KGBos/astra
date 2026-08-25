@@ -120,7 +120,13 @@ class RadioTuner:
 
 
 class SoundscapeManager:
-    """Zero-dependency asynchronous sound manager using standard library WAV synthesis & system audio."""
+    """Zero-dependency asynchronous sound manager using standard library WAV synthesis & system audio.
+
+    EXPERIMENTAL for v1.0 (T-39): audio is explicitly not a v1.0 quality target.
+    Ships mute-default; synthesis runs on a background thread and the system
+    player probe is cached once, so neither startup nor the [V] toggle can
+    hitch a render frame.
+    """
 
     def __init__(self, enabled: bool = True):
         self.enabled = enabled
@@ -131,10 +137,13 @@ class SoundscapeManager:
         self.is_muted = not enabled
         self._lock = threading.Lock()
         self.radio = RadioTuner()
+        self._synth_thread: Optional[threading.Thread] = None
+        self._linux_player: Optional[str] = None
 
-        # Pre-synthesize retro 8-bit sound effects
+        # Pre-synthesize retro 8-bit sound effects — off the calling thread so
+        # startup with --audio cannot stall the first frame (T-39)
         if self.enabled:
-            self._synthesize_sound_bank()
+            self.start_synthesis()
 
     def _ensure_tempdir(self) -> str:
         if self.temp_dir is None:
@@ -183,6 +192,16 @@ class SoundscapeManager:
 
             wav_file.writeframes(raw_data)
         return filepath
+
+    def start_synthesis(self):
+        """Kicks off sound-bank synthesis on a daemon thread (no-op if one is
+        already running), so the calling thread never hitches a frame (T-39)."""
+        with self._lock:
+            if self._synth_thread is not None and self._synth_thread.is_alive():
+                return
+            self._synth_thread = threading.Thread(
+                target=self._synthesize_sound_bank, daemon=True)
+            self._synth_thread.start()
 
     def _synthesize_sound_bank(self):
         sample_rate = 22050
@@ -242,29 +261,48 @@ class SoundscapeManager:
         sound_path = self.sound_cache[sound_name]
         threading.Thread(target=self._play_subprocess, args=(sound_path,), daemon=True).start()
 
+    def _probe_linux_player(self) -> str:
+        """Resolves the Linux CLI player exactly once and caches the result,
+        so playback never pays a `which` subprocess per sound (T-39)."""
+        if self._linux_player is None:
+            try:
+                has_pulse = subprocess.run(
+                    ["which", "paplay"], stdout=subprocess.DEVNULL
+                ).returncode == 0
+            except Exception:
+                has_pulse = False
+            self._linux_player = "paplay" if has_pulse else "aplay"
+        return self._linux_player
+
     def _play_subprocess(self, path: str):
         try:
             if sys.platform == "darwin":
                 # macOS native ultra-low latency CLI player
                 subprocess.run(["afplay", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2.0)
             elif sys.platform.startswith("linux"):
-                # Linux aplay / paplay
-                player = "paplay" if subprocess.run(["which", "paplay"], stdout=subprocess.DEVNULL).returncode == 0 else "aplay"
-                subprocess.run([player, path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2.0)
+                # Linux aplay / paplay — player resolved once, then cached
+                subprocess.run([self._probe_linux_player(), path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2.0)
         except Exception:
             pass
 
     def toggle_mute(self) -> bool:
         self.is_muted = not self.is_muted
         if not self.is_muted and not self.sound_cache:
-            # First audible request without a synthesized bank: build it now
-            try:
-                self._synthesize_sound_bank()
-            except Exception:
-                pass
+            # First audible request without a synthesized bank: build it in
+            # the background so pressing [V] cannot hitch a frame (T-39)
+            self.start_synthesis()
         return not self.is_muted
 
+    def join_synthesis(self, timeout: float = 5.0):
+        """Blocks until any in-flight sound-bank synthesis completes."""
+        synth = self._synth_thread
+        if synth is not None and synth.is_alive():
+            synth.join(timeout=timeout)
+
     def cleanup(self):
+        # Wait out any in-flight synthesis so we never delete half-written
+        # WAVs or the tempdir out from under the background thread
+        self.join_synthesis()
         try:
             for f in self.sound_cache.values():
                 if os.path.exists(f):
