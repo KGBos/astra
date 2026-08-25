@@ -138,6 +138,7 @@ class SoundscapeManager:
         self._lock = threading.Lock()
         self.radio = RadioTuner()
         self._synth_thread: Optional[threading.Thread] = None
+        self._synthesis_done = False
         self._linux_player: Optional[str] = None
 
         # Pre-synthesize retro 8-bit sound effects — off the calling thread so
@@ -249,9 +250,17 @@ class SoundscapeManager:
 
             self.sound_cache["thud"] = self._generate_wav("thud.wav", 0.2, sample_rate, thud_fn)
 
+            self._synthesis_done = True
+
         except Exception:
-            # If audio synthesis fails on any environment, fail gracefully
-            pass
+            # If audio synthesis fails on any environment, fail gracefully and
+            # drop partial files so a later unmute can retry the full bank
+            for f in list(self.sound_cache.values()):
+                try:
+                    os.remove(f)
+                except OSError:
+                    pass
+            self.sound_cache.clear()
 
     def play(self, sound_name: str):
         """Asynchronously plays sound without blocking engine frame rate."""
@@ -264,15 +273,16 @@ class SoundscapeManager:
     def _probe_linux_player(self) -> str:
         """Resolves the Linux CLI player exactly once and caches the result,
         so playback never pays a `which` subprocess per sound (T-39)."""
-        if self._linux_player is None:
-            try:
-                has_pulse = subprocess.run(
-                    ["which", "paplay"], stdout=subprocess.DEVNULL
-                ).returncode == 0
-            except Exception:
-                has_pulse = False
-            self._linux_player = "paplay" if has_pulse else "aplay"
-        return self._linux_player
+        with self._lock:
+            if self._linux_player is None:
+                try:
+                    has_pulse = subprocess.run(
+                        ["which", "paplay"], stdout=subprocess.DEVNULL
+                    ).returncode == 0
+                except Exception:
+                    has_pulse = False
+                self._linux_player = "paplay" if has_pulse else "aplay"
+            return self._linux_player
 
     def _play_subprocess(self, path: str):
         try:
@@ -287,9 +297,9 @@ class SoundscapeManager:
 
     def toggle_mute(self) -> bool:
         self.is_muted = not self.is_muted
-        if not self.is_muted and not self.sound_cache:
-            # First audible request without a synthesized bank: build it in
-            # the background so pressing [V] cannot hitch a frame (T-39)
+        if not self.is_muted and not self._synthesis_done:
+            # No complete bank yet (never built, or a failed partial): build it
+            # in the background so pressing [V] cannot hitch a frame (T-39)
             self.start_synthesis()
         return not self.is_muted
 
@@ -303,6 +313,11 @@ class SoundscapeManager:
         # Wait out any in-flight synthesis so we never delete half-written
         # WAVs or the tempdir out from under the background thread
         self.join_synthesis()
+        if self._synth_thread is not None and self._synth_thread.is_alive():
+            # Synthesis outlived the join timeout: touching the files now
+            # could race a mid-write. Leave the tempdir for OS reclamation
+            # and keep all state consistent for the still-running writer.
+            return
         try:
             for f in self.sound_cache.values():
                 if os.path.exists(f):

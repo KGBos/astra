@@ -9,6 +9,7 @@ Regression tests for the M2 integration review fixes:
 import os
 import tempfile
 import unittest
+import unittest.mock
 
 from src.game import Game
 from src.engine.camera import Camera
@@ -28,6 +29,32 @@ class TestMuteDefaultAudio(unittest.TestCase):
         self.assertTrue(s.is_muted)
         self.assertIsNone(s.temp_dir)
         self.assertEqual(s.sound_cache, {})
+
+    def test_failed_synthesis_retries_on_next_unmute(self):
+        # A mid-bank failure must not leave a partial cache that blocks retry:
+        # the partial files are dropped and the next unmute rebuilds (CodeRabbit)
+        s = SoundscapeManager(enabled=False)
+        self._soundscape = s
+        original = s._generate_wav
+        calls = {"n": 0}
+
+        def flaky(filename, *args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] >= 2:
+                raise OSError("disk full")
+            return original(filename, *args, **kwargs)
+
+        s.toggle_mute()
+        with unittest.mock.patch.object(s, "_generate_wav", side_effect=flaky):
+            s.start_synthesis()
+            s.join_synthesis()
+        self.assertFalse(s._synthesis_done)
+        self.assertEqual(s.sound_cache, {})
+        self.assertFalse(s.toggle_mute())  # mute again...
+        self.assertTrue(s.toggle_mute())   # ...and unmute: must rebuild
+        s.join_synthesis()
+        self.assertTrue(s._synthesis_done)
+        self.assertIn("horn", s.sound_cache)
 
     def test_game_default_is_muted_and_tempdir_free(self):
         game = Game(width=40, height=20)
