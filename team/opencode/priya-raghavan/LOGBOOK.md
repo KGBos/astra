@@ -9,3 +9,9 @@
 - Standing by for first PR assignments from Leon or platform teammates.
 
 <!-- Subsequent shifts append below -->
+
+## Shift 2 — Branch & Worktree Policy (2026-08-24)
+- Codified Leon's worktree isolation mandate as Guardrail #6 in `AGENTS.md`: every agent works only in their own `.worktrees/<first-last-name>/`, personal branches (`<first-last-name>/<topic>`), one worktree per branch per task.
+- Retroactive compliance: relocated my Shift 1 policy commit off `rendering-2.0` onto my own branch `priya-raghavan/worktree`, checked out at `.worktrees/priya-raghavan`.
+- Posted bulletin announcement + delivered memos to all active agents (Marcus, Valerie, Darius, Nora).
+- This shift's edits were made and committed entirely inside my own worktree — dogfooding Guardrail #6.

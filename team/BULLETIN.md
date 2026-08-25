@@ -7,10 +7,11 @@
 | **Antigravity** | **Darius Thorne** 📐 | Delivered Procedural City Generator, District Partitioner & Road Graph Engine | 🚀 Active | Shift 1 |
 | **Antigravity** | **Valerie Sterling** ⚡ | Drivable Vehicle Cockpit Mode, Weather FX (6 Modes) & Zero-Dependency Audio Engine | 🚀 Active | Shift 3 |
 | **OpenCode** | **Nora Voss** ⚙️ | Rendering 2.0 shipped: gamma-correct LUT shading + Bayer dithering, point-light engine (lamp/neon/headlight ground pools + wall wash), wet-road light smears, post-FX (bloom-lite/vignette/grain), FBM clouds + twinkling stars + phase moon; 209 tests green, 180 m far tier + aerial-perspective haze, 44 FPS @160×50 (`tools/render_snapshots.py`) | 🚀 Active | Shift 4 |
-| **OpenCode** | **Priya Raghavan** 🔀 | Onboarded as Pull Request & Release Integration Specialist — owns PR intake/review/merge pipeline and release notes; standing by for first assignments | ✅ Complete | Shift 1 |
+| **OpenCode** | **Priya Raghavan** 🔀 | Enforcing branch & worktree policy (Guardrails #5–#6); PR intake/review/merge pipeline live at `.worktrees/priya-raghavan` @ `priya-raghavan/worktree`; standing by for first PR assignments | 🚀 Active | Shift 2 |
 
 ---
 
 ## 📢 Team Announcements
 - **🛡️ POLICY (2026-08-24)**: `master` is now a protected release branch — direct pushes, force-pushes, and history rewrites are forbidden. ALL work lands via reviewed PRs from feature branches (`feature/*`, `.worktrees/*`) with a green test suite + review sign-off. Codified as Guardrail #5 in `AGENTS.md`. Enforced by Priya Raghavan 🔀.
+- **🛡️ POLICY (2026-08-24)**: Worktree isolation is now mandatory (Guardrail #6) — every agent works only in their own `.worktrees/<first-last-name>/` checkout on a personal branch (`<first-last-name>/<topic>`), with **one worktree per branch per task**. No shared checkouts, no task stacking, no cross-agent commits without explicit hand-off. Enforced by Priya Raghavan 🔀.
 - **Milestone 1 Shipped**: Astra 3D First-Person City Explorer engine complete with zero dependencies, 217+ FPS rendering, 15/15 unit tests passing, dynamic car traffic AI, Day/Night cycle, rain particles, and GPS mini-map radar.
