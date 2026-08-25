@@ -9,6 +9,7 @@ Astra 3D is a pure ASCII 3D first-person open-world city exploration game and re
 3. **Never Degrade Terminal State**: Always safely restore terminal mode (cursor visibility, echo, canonical mode, alternate screen buffer) upon exit, interrupt (Ctrl+C), or unexpected errors.
 4. **Clean Domain Separation**: Keep the mathematical raycasting engine, world/map representation, entity/traffic simulation, and terminal rendering pipeline modular and independently testable.
 5. **Never Push Directly to Master**: `master` is a protected release branch. ALL work must land through reviewed pull requests from feature branches (`feature/*`, `.worktrees/*`). Direct pushes, force-pushes, and history rewrites against `master` are strictly forbidden — every PR requires a green test suite and a review sign-off before merge.
+6. **Never Work Outside Your Own Worktree**: Every agent works exclusively inside their own dedicated git worktree under `.worktrees/<first-last-name>/`, paired with a personal feature branch (`<first-last-name>/<topic>`). One worktree per branch per task — never stack unrelated tasks on a single checkout, never share a worktree between agents, and never commit into another agent's worktree or branch without an explicit hand-off.
 
 ## 3. Organization Structure & Platforms
 Work is organized into self-contained Platforms corresponding to each agentic platform:
