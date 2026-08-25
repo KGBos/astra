@@ -1,0 +1,169 @@
+{
+  "_format": "astra-golden-v1",
+  "_notes": [
+    "Regenerate with: python3 tools/golden_capture.py --write",
+    "Expected-vs-actual cell diffs on drift read the canonical frame dumps in tests/golden/frames/ (fixed-width cells: 6-hex glyph ordinal, F/N flag + 6-hex RGB for fg and bg).",
+    "Determinism is pinned harness-side: global random is seeded per scenario before WeatherSystem construction, weather.update() is never called, and wetness/fog_density are assigned explicit constants.",
+    "Interior/driving render modes require the full Game loop and arrive later via T-11 fixtures; this manifest intentionally excludes them.",
+    "Falling-weather streaks are painted by the Game overlay, not the Raycaster, so rain/storm scenarios exercise wetness reflections, fog blending and lightning-state shading instead of streak glyphs."
+  ],
+  "_regen_command": "python3 tools/golden_capture.py --write",
+  "scenarios": {
+    "dusk-fog-80x32": {
+      "digest": "c98e1e89a7c43bff4f22c153b2d65c4ee069e54b767af204753f44cce5ef92c5",
+      "frame_file": "frames/dusk-fog-80x32.cells",
+      "headlights": false,
+      "hour": 19.5,
+      "mode": "default",
+      "viewport": [
+        80,
+        32
+      ],
+      "weather": "fog"
+    },
+    "night-beams-80x32": {
+      "digest": "72d03cfc9e1591c787adc5dce05665dd554e716135e64056e735907eac7da277",
+      "frame_file": "frames/night-beams-80x32.cells",
+      "headlights": true,
+      "hour": 23.0,
+      "mode": "default",
+      "viewport": [
+        80,
+        32
+      ],
+      "weather": "clear"
+    },
+    "night-beams-nofill-80x32": {
+      "digest": "301ccfd18a57ad3425e9a8cc1d44091a0e472c7b538a7899fc980487b7239b51",
+      "frame_file": "frames/night-beams-nofill-80x32.cells",
+      "headlights": true,
+      "hour": 23.0,
+      "mode": "nofill",
+      "viewport": [
+        80,
+        32
+      ],
+      "weather": "clear"
+    },
+    "night-lamps-80x32": {
+      "digest": "6a880da8810b251dc7cf3e6e1cfebe6c72ce07d33245882ea522b64aa8491c25",
+      "frame_file": "frames/night-lamps-80x32.cells",
+      "headlights": false,
+      "hour": 23.0,
+      "mode": "default",
+      "viewport": [
+        80,
+        32
+      ],
+      "weather": "clear"
+    },
+    "noon-clear-160x50": {
+      "digest": "d144097f257f773778818fda4b37fde92cec933d76922b5e6eca468477cd9faa",
+      "frame_file": "frames/noon-clear-160x50.cells",
+      "headlights": false,
+      "hour": 12.0,
+      "mode": "default",
+      "viewport": [
+        160,
+        50
+      ],
+      "weather": "clear"
+    },
+    "noon-clear-80x32": {
+      "digest": "babee04227eac456e68220909cc7165d4ee639ff70670dc20db9e618d391ebe5",
+      "frame_file": "frames/noon-clear-80x32.cells",
+      "headlights": false,
+      "hour": 12.0,
+      "mode": "default",
+      "viewport": [
+        80,
+        32
+      ],
+      "weather": "clear"
+    },
+    "noon-mono-80x32": {
+      "digest": "a2db47613ec157d060f0238b22c902b5c9f50a5d530f3c645e55368602a7bed1",
+      "frame_file": "frames/noon-mono-80x32.cells",
+      "headlights": false,
+      "hour": 12.0,
+      "mode": "mono",
+      "viewport": [
+        80,
+        32
+      ],
+      "weather": "clear"
+    },
+    "rain-night-160x50": {
+      "digest": "66ea005b66385dd230f361fbfd48c12b1ff553568b0e069af4a755bc89591e32",
+      "frame_file": "frames/rain-night-160x50.cells",
+      "headlights": false,
+      "hour": 23.2,
+      "mode": "default",
+      "viewport": [
+        160,
+        50
+      ],
+      "weather": "rain"
+    },
+    "rain-night-80x32": {
+      "digest": "f5b47fef129514a5d57801e2dafe2b34373e2d553ac9dd86eb83c05efd6c37d6",
+      "frame_file": "frames/rain-night-80x32.cells",
+      "headlights": false,
+      "hour": 23.2,
+      "mode": "default",
+      "viewport": [
+        80,
+        32
+      ],
+      "weather": "rain"
+    },
+    "rain-night-mono-80x32": {
+      "digest": "e29a532c66f82eb55713c0fe8d82baa789caaeaea711dfcf605a91f939826840",
+      "frame_file": "frames/rain-night-mono-80x32.cells",
+      "headlights": false,
+      "hour": 23.2,
+      "mode": "mono",
+      "viewport": [
+        80,
+        32
+      ],
+      "weather": "rain"
+    },
+    "storm-night-80x32": {
+      "digest": "7a631ca3f9471e9067ab9bc93a6ca520f1cce48d5012735079df8f46bcca8600",
+      "frame_file": "frames/storm-night-80x32.cells",
+      "headlights": false,
+      "hour": 23.4,
+      "mode": "default",
+      "viewport": [
+        80,
+        32
+      ],
+      "weather": "storm"
+    },
+    "sunset-clear-80x32": {
+      "digest": "1e63d23e95046a1075c88388e86e095803702589ca61d8d23e4629a22554d1b5",
+      "frame_file": "frames/sunset-clear-80x32.cells",
+      "headlights": false,
+      "hour": 18.5,
+      "mode": "default",
+      "viewport": [
+        80,
+        32
+      ],
+      "weather": "clear"
+    },
+    "sunset-nofill-80x32": {
+      "digest": "8a8027f6b4f1817fb869b853c2cc83b2d35479f643577295fc5d8b201e73389b",
+      "frame_file": "frames/sunset-nofill-80x32.cells",
+      "headlights": false,
+      "hour": 18.5,
+      "mode": "nofill",
+      "viewport": [
+        80,
+        32
+      ],
+      "weather": "clear"
+    }
+  }
+}
