@@ -21,7 +21,9 @@ class TestRaycaster(unittest.TestCase):
         self.buffer = ScreenBuffer(80, 32)
 
     def test_cast_ray_hit(self):
-        # Ray cast from center column
+        # Guaranteed facade straight ahead of the center column (open-horizon
+        # world edges must never masquerade as hits since Rendering 2.0)
+        self.city_map.walls[20][12] = 5
         hit = self.raycaster._cast_ray(40, self.camera, self.city_map)
         self.assertTrue(hit.hit)
         self.assertGreater(hit.perp_wall_dist, 0.0)

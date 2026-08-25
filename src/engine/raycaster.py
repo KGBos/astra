@@ -7,8 +7,8 @@ import math
 from typing import List, Tuple, Optional
 from src.engine.camera import Camera
 from src.engine.math3d import clamp, RayHit
-from src.engine.tone import (get_shade_lut, SHADE_CACHE, BAYER4, BAYER_MID,
-                             hash_noise, fbm_noise)
+from src.engine.tone import (get_shade_lut, SHADE_CACHE, get_blend_lut,
+                             BAYER4, BAYER_MID, hash_noise, fbm_noise)
 from src.engine.lighting import collect_lights, make_player_headlight, strongest_light_at
 from src.world.city_map import CityMap, FloorType
 from src.world.textures import get_texture
@@ -49,9 +49,18 @@ class Raycaster:
     # shorter buildings to taller towers behind them
     MAX_LAYERS = 3        # max wall layers recorded per column
     NEAR_STEPS = 18       # detailed cell-by-cell DDA budget (near tier)
-    FAR_MAX_DIST = 60.0   # world units scanned by the far tier (skyline range)
-    FAR_STRIDE = 1.5      # far-tier sampling step along the ray
+    FAR_MAX_DIST = 180.0  # world units scanned by the far tier (skyline range)
+    FAR_STRIDE = 1.2      # far-tier sampling step along the ray
     WINDOW_HALF_HEIGHT_M = 1.0  # glass opening half-height in metres (2 m band)
+
+    # Aerial perspective: distance haze lifting far geometry toward the sky
+    # band color so long vistas read as layered silhouettes instead of black
+    HAZE_K = 0.011        # exponential haze rate per metre
+    HAZE_CAP = 0.85       # maximum blend toward the haze color
+    HAZE_FLOOR_CAP = 0.88 # ground-plane variant (meets the sky at horizon)
+    BRIGHT_PIERCE_SUM = 380  # shaded-texel channel sum that pierces the haze
+    SPRITE_CULL_SQ = 3600.0   # sprites drawn to 60 m (beyond that they are
+                              # sub-cell specks; buildings carry the vista)
 
     # Rendering-2.0 knobs (research: gamma LUTs, Bayer dither, point lights,
     # wet reflections, post-FX). All pure-stdlib and ASCII-safe.
@@ -108,6 +117,15 @@ class Raycaster:
         # enters through the wall/sprite/floor projections instead of a horizon shift
         horizon_y = int(self.height / 2.0 + camera.pitch + camera.bob_amount * self.height)
 
+        # Aerial perspective target: weather fog color when foggy, otherwise
+        # the sky band at the horizon. Disabled indoors (rooms have no vista).
+        if getattr(city_map, 'in_interior', False):
+            haze_col = None
+        elif weather is not None and weather.fog_density > 0:
+            haze_col = weather.fog_color
+        else:
+            haze_col = horizon_col
+
         # 1. Render Sky (Ceiling) & Floor Background Slices
         self._render_sky_and_floor(
             camera=camera,
@@ -122,7 +140,8 @@ class Raycaster:
             lightning_col=lightning_col,
             ppm=ppm,
             buffer=buffer,
-            lights=lights
+            lights=lights,
+            haze_col=haze_col
         )
 
         # 2. Raycast Walls & Record Z-Buffer (multi-layer, far-to-near paint)
@@ -145,7 +164,8 @@ class Raycaster:
                         flashlight_on=flashlight_on,
                         buffer=buffer,
                         ppm=ppm,
-                        lights=lights
+                        lights=lights,
+                        haze_col=haze_col
                     )
 
                 if portal_layers:
@@ -166,7 +186,8 @@ class Raycaster:
                             flashlight_on=flashlight_on,
                             buffer=buffer,
                             clip=(w_top, w_bot),
-                            lights=lights
+                            lights=lights,
+                            haze_col=haze_col
                         )
                 elif layers[-1].win_dist > 0.0 and not layers[-1].hit:
                     # Window crossed with nothing solid beyond: open sky through glass
@@ -185,7 +206,7 @@ class Raycaster:
                         buffer=buffer
                     )
             else:
-                self.z_buffer[x] = 100.0
+                self.z_buffer[x] = self.FAR_MAX_DIST
                 if layers and not layers[0].hit and layers[0].win_dist > 0.0:
                     # Window with nothing solid beyond: open sky through glass
                     win_dist = layers[0].win_dist
@@ -212,7 +233,8 @@ class Raycaster:
             weather=weather,
             buffer=buffer,
             ppm=ppm,
-            lights=lights
+            lights=lights,
+            haze_col=haze_col
         )
 
         # 4. Wet-road light reflections (screen-space vertical smears)
@@ -352,7 +374,7 @@ class Raycaster:
                 if 0 <= map_x < map_w and 0 <= map_y < map_h:
                     solid = walls_grid[map_y][map_x] > 0
                 else:
-                    solid = True
+                    solid = False  # past the grid edge: sky, not phantom wall
             else:
                 solid = city_map.is_solid(map_x, map_y)
             if not solid:
@@ -440,7 +462,9 @@ class Raycaster:
             fx = int(px)
             fy = int(py)
             if walls_grid is not None:
-                solid = not (0 <= fx < map_w and 0 <= fy < map_h) or walls_grid[fy][fx] > 0
+                if not (0 <= fx < map_w and 0 <= fy < map_h):
+                    break  # left the city grid: open sky beyond the horizon
+                solid = walls_grid[fy][fx] > 0
             else:
                 solid = city_map.is_solid(px, py)
             if solid:
@@ -458,7 +482,7 @@ class Raycaster:
                                          is_far=True))
                 break
             t += stride
-            stride *= 1.12  # distant silhouette needs less sampling precision
+            stride *= 1.15  # distant silhouette needs less sampling precision
 
         return layers
 
@@ -474,7 +498,8 @@ class Raycaster:
         buffer: ScreenBuffer,
         clip: Optional[Tuple[int, int]] = None,
         ppm: Optional[float] = None,
-        lights: Optional[List] = None
+        lights: Optional[List] = None,
+        haze_col: Optional[Tuple[int, int, int]] = None
     ):
         texture = get_texture(hit.wall_type)
         if ppm is None:
@@ -498,7 +523,7 @@ class Raycaster:
 
         if hit.is_far:
             self._draw_far_body(screen_x, hit, draw_start, draw_end,
-                                texture, shade, weather, buffer)
+                                texture, shade, weather, buffer, haze_col)
             return
 
         # Tactical Flashlight conical boost in front of camera
@@ -509,10 +534,18 @@ class Raycaster:
                 beam_boost = (1.8 / (1.0 + 0.12 * hit.perp_wall_dist)) * beam_focus
                 shade = clamp(shade + beam_boost, 0.1, 2.2)
 
-        # Volumetric Fog blending factor
-        fog_factor = 0.0
+        # Distance blend: volumetric fog when the weather provides it,
+        # otherwise aerial perspective toward the sky-band color (long-range
+        # vistas read as layered haze instead of black)
         if weather and weather.fog_density > 0:
-            fog_factor = clamp(1.0 - math.exp(-hit.perp_wall_dist * weather.fog_density), 0.0, 0.95)
+            fd_base = clamp(1.0 - math.exp(-hit.perp_wall_dist * weather.fog_density), 0.0, 0.95)
+            tgt_r, tgt_g, tgt_b = weather.fog_color
+        elif haze_col is not None and hit.perp_wall_dist > 12.0:
+            fd_base = clamp(1.0 - math.exp(-hit.perp_wall_dist * self.HAZE_K), 0.0, self.HAZE_CAP)
+            tgt_r, tgt_g, tgt_b = haze_col
+        else:
+            fd_base = 0.0
+            tgt_r = tgt_g = tgt_b = 0
 
         y0 = max(0, draw_start)
         y1 = min(self.height - 1, draw_end)
@@ -559,8 +592,8 @@ class Raycaster:
         mid = BAYER_MID
         shade_lut = get_shade_lut
 
-        if fog_factor > 0.0 and weather is not None:
-            fog_r, fog_g, fog_b = weather.fog_color
+        if fd_base > 0.004:
+            bl_r, bl_g, bl_b = get_blend_lut((tgt_r, tgt_g, tgt_b))
             for y in range(y0, y1 + 1):
                 ty = int((((y - draw_start) / span) % 1.0) * tex_h)
                 ty = max(0, min(ty, tex_h - 1))
@@ -572,25 +605,33 @@ class Raycaster:
                 lut = SHADE_CACHE.get(q)
                 if lut is None:
                     lut = get_shade_lut(q / 64.0)
-                fd = fog_factor + (b - mid) * f_amp
+                fd = fd_base + (b - mid) * f_amp
                 if fd < 0.0:
                     fd = 0.0
                 elif fd > 0.97:
                     fd = 0.97
-                inv_fd = 1.0 - fd
 
                 r = lut[fg_raw[0]]
                 g = lut[fg_raw[1]]
                 bch = lut[fg_raw[2]]
-                r = int(r + (fog_r - r) * fd)
-                g = int(g + (fog_g - g) * fd)
-                bch = int(bch + (fog_b - bch) * fd)
-                br = lut[bg_raw[0]]
-                bg_g = lut[bg_raw[1]]
-                bb = lut[bg_raw[2]]
-                br = int(br + (fog_r - br) * fd)
-                bg_g = int(bg_g + (fog_g - bg_g) * fd)
-                bb = int(bb + (fog_b - bb) * fd)
+                # Bright texels (lit windows, neon) pierce the haze
+                if fd > 0.05 and r + g + bch > self.BRIGHT_PIERCE_SUM:
+                    fd *= 0.35
+                q32 = int(fd * 32.0)
+                r = bl_r[q32][r]
+                g = bl_g[q32][g]
+                bch = bl_b[q32][bch]
+                if fd > 0.22:
+                    br = lut[bg_raw[0]]
+                    bg_g = lut[bg_raw[1]]
+                    bb = lut[bg_raw[2]]
+                    br = bl_r[q32][br]
+                    bg_g = bl_g[q32][bg_g]
+                    bb = bl_b[q32][bb]
+                else:
+                    br = lut[bg_raw[0]]
+                    bg_g = lut[bg_raw[1]]
+                    bb = lut[bg_raw[2]]
 
                 if has_wash:
                     nr = r + wash_r
@@ -669,27 +710,34 @@ class Raycaster:
         texture,
         shade: float,
         weather: Optional[WeatherSystem],
-        buffer: ScreenBuffer
+        buffer: ScreenBuffer,
+        haze_col: Optional[Tuple[int, int, int]] = None
     ):
         """
         Simplified far-skyline slice: blocky two-glyph silhouette tinted from
-        the building's base palette, with a minimum fog haze for depth cueing.
+        the building's base palette, lifted toward the sky band by aerial
+        perspective (minimum baseline haze for depth cueing).
         """
         _, _, bg_raw = texture.sample(hit.wall_x, 0.5)
         fg_raw = texture.fg_colors[len(texture.fg_colors) // 2][0]
 
-        fog_factor = 0.0
         if weather and weather.fog_density > 0:
             fog_factor = clamp(1.0 - math.exp(-hit.perp_wall_dist * weather.fog_density), 0.0, 0.95)
+            tgt = weather.fog_color
+        elif haze_col is not None:
+            fog_factor = clamp(1.0 - math.exp(-hit.perp_wall_dist * self.HAZE_K), 0.0, self.HAZE_CAP)
+            tgt = haze_col
+        else:
+            fog_factor = 0.0
+            tgt = None
         # Distant skyline always carries a baseline atmospheric haze
         fog_factor = max(fog_factor, 0.30)
+        if tgt is None:
+            tgt = (90, 100, 120)
 
         lut = get_shade_lut(shade)
-        fg = (lut[fg_raw[0]], lut[fg_raw[1]], lut[fg_raw[2]])
-        bg = (lut[bg_raw[0]], lut[bg_raw[1]], lut[bg_raw[2]])
-        if weather:
-            fg = _blend_color(fg, weather.fog_color, fog_factor)
-            bg = _blend_color(bg, weather.fog_color, fog_factor)
+        fg = _blend_color((lut[fg_raw[0]], lut[fg_raw[1]], lut[fg_raw[2]]), tgt, fog_factor)
+        bg = _blend_color((lut[bg_raw[0]], lut[bg_raw[1]], lut[bg_raw[2]]), tgt, fog_factor)
 
         y0 = max(0, draw_start)
         y1 = min(self.height - 1, draw_end)
@@ -739,7 +787,8 @@ class Raycaster:
         lightning_col: Tuple[int, int, int],
         ppm: float,
         buffer: ScreenBuffer,
-        lights: Optional[List] = None
+        lights: Optional[List] = None,
+        haze_col: Optional[Tuple[int, int, int]] = None
     ):
         """Sky gradient, procedural cloud layer, twinkling stars, moon phase
         disc, and a perspective floor-caster with additive point-light pools.
@@ -920,10 +969,19 @@ class Raycaster:
             row_dist = (ppm * eye_m) / dy
             floor_shade = clamp((1.0 / (1.0 + 0.1 * row_dist + 0.008 * row_dist * row_dist)) * ambient, 0.1, 1.0)
 
-            floor_fog = 0.0
-            if fog_density > 0:
-                floor_fog = clamp(1.0 - math.exp(-row_dist * fog_density), 0.0, 0.95)
-            has_floor_fog = floor_fog > 0.0 and weather is not None
+            # Distance blend on the ground plane: weather fog wins, else
+            # aerial perspective lifts the vanishing ground into the sky band
+            if fog_density > 0 and weather is not None:
+                fd_base = clamp(1.0 - math.exp(-row_dist * fog_density), 0.0, 0.95)
+                row_tgt_r, row_tgt_g, row_tgt_b = fog_color
+            elif haze_col is not None and row_dist > 16.0:
+                fd_base = clamp(1.0 - math.exp(-row_dist * self.HAZE_K), 0.0, self.HAZE_FLOOR_CAP)
+                row_tgt_r, row_tgt_g, row_tgt_b = haze_col
+            else:
+                fd_base = 0.0
+                row_tgt_r = row_tgt_g = row_tgt_b = 0
+            if fd_base > 0.004:
+                fl_r, fl_g, fl_b = get_blend_lut((row_tgt_r, row_tgt_g, row_tgt_b))
 
             floor_x = camera.pos.x + row_dist * ray_dir_x0
             floor_y = camera.pos.y + row_dist * ray_dir_y0
@@ -1092,19 +1150,15 @@ class Raycaster:
                     fg = (int(nr), int(ng), int(nb))
                     bg = (int(nbr), int(nbg), int(nbb))
 
-                if has_floor_fog:
-                    fd = floor_fog + (bayer_row[x & 3] - mid) * f_amp
+                if fd_base > 0.004:
+                    fd = fd_base + (bayer_row[x & 3] - mid) * f_amp
                     if fd < 0.0:
                         fd = 0.0
                     elif fd > 0.97:
                         fd = 0.97
-                    fr, fg_g, fb_b = fog_color
-                    fg = (int(fg[0] + (fr - fg[0]) * fd),
-                          int(fg[1] + (fg_g - fg[1]) * fd),
-                          int(fg[2] + (fb_b - fg[2]) * fd))
-                    bg = (int(bg[0] + (fr - bg[0]) * fd),
-                          int(bg[1] + (fg_g - bg[1]) * fd),
-                          int(bg[2] + (fb_b - bg[2]) * fd))
+                    q32 = int(fd * 32.0)
+                    fg = (fl_r[q32][fg[0]], fl_g[q32][fg[1]], fl_b[q32][fg[2]])
+                    bg = (fl_r[q32][bg[0]], fl_g[q32][bg[1]], fl_b[q32][bg[2]])
 
                 if ascii_translate is not None and not char.isascii():
                     char = ascii_translate(char, '?')
@@ -1125,7 +1179,8 @@ class Raycaster:
         weather: Optional[WeatherSystem],
         buffer: ScreenBuffer,
         ppm: Optional[float] = None,
-        lights: Optional[List] = None
+        lights: Optional[List] = None,
+        haze_col: Optional[Tuple[int, int, int]] = None
     ):
         if ppm is None:
             ppm = pixels_per_meter_at_1m(self.width, self.height, camera.plane.length())
@@ -1135,7 +1190,7 @@ class Raycaster:
             dx = spr.x - camera.pos.x
             dy = spr.y - camera.pos.y
             dist_sq = dx * dx + dy * dy
-            if dist_sq < 900.0:
+            if dist_sq < self.SPRITE_CULL_SQ:
                 active_sprites.append((dist_sq, spr))
 
         active_sprites.sort(key=lambda item: item[0], reverse=True)
@@ -1166,7 +1221,8 @@ class Raycaster:
                     buffer=buffer,
                     dist=dist,
                     dist_sq=dist_sq,
-                    ppm=ppm
+                    ppm=ppm,
+                    haze_col=haze_col
                 )
                 continue
 
@@ -1265,7 +1321,8 @@ class Raycaster:
         buffer: ScreenBuffer,
         dist: float,
         dist_sq: float,
-        ppm: Optional[float] = None
+        ppm: Optional[float] = None,
+        haze_col: Optional[Tuple[int, int, int]] = None
     ):
         """
         Pseudo-volumetric box projection: front and side faces share the
