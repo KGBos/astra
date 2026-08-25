@@ -456,7 +456,7 @@ class Raycaster:
 
         t = max(forward_now, 0.0) + self.FAR_STRIDE
         stride = self.FAR_STRIDE
-        while t <= self.FAR_MAX_DIST:
+        while t <= self.FAR_MAX_DIST and len(layers) < self.MAX_LAYERS:
             px = camera.pos.x + ray_dir_x * t
             py = camera.pos.y + ray_dir_y * t
             fx = int(px)
@@ -470,7 +470,11 @@ class Raycaster:
             if solid:
                 wall_type = city_map.get_wall_type(fx, fy)
                 wall_h = city_map.get_wall_height(wall_type)
+                # A shorter or equal mass behind one already recorded adds
+                # nothing, but a TALLER silhouette rising behind it does, so
+                # keep marching instead of stopping at the first solid cell.
                 if wall_h > max_height + 1e-6 or not layers:
+                    max_height = max(max_height, wall_h)
                     # Face hint from fractional position inside the sampled cell
                     frac_x = px - math.floor(px)
                     frac_y = py - math.floor(py)
@@ -480,7 +484,6 @@ class Raycaster:
                                          max(0.08, t * dir_dot), wall_x,
                                          wall_type, wall_h, ray_dir_x, ray_dir_y,
                                          is_far=True))
-                break
             t += stride
             stride *= 1.15  # distant silhouette needs less sampling precision
 

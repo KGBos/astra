@@ -18,6 +18,40 @@
 
 ---
 
+## Decisions from Leon (2026-08-24)
+
+1. **Audio — experimental.** Visuals come first; audio is not a v1.0 quality target.
+   Ships mute-default and clearly labelled. → **T-39**.
+2. **Windows — yes.** Native terminal support is wanted. Effort is moderate and
+   stdlib-only (`msvcrt` input, `ctypes` VT-mode enable, polled resize). → **T-38**.
+   Note: a web backend (**T-37**) delivers Windows for free, so T-38 is scheduled
+   *after* the backend interface exists rather than as a bespoke port.
+3. **Nora's branch — evaluated, salvaged, retired.** See "Salvage record" below.
+4. **Render aesthetic — this is now a headline v1.0 concern.** Leon's position: coloured
+   **ASCII** mode should be coloured *characters* on the terminal's own background, not
+   coloured cells. Cell-fill rendering "is just a pixelated game". A background-filled
+   mode may still exist, but it must be *a* mode, not *the* mode, and each mode must be
+   art-directed rather than a degradation of the default. → **T-33, T-34, T-35**.
+5. **Terminal vs. web — do not choose; abstract the backend.** The renderer already
+   emits a grid of `(glyph, fg, bg)` cells, which is backend-agnostic. → **T-36**
+   (interface, cheap, now) then **T-37** (web canvas spike, timeboxed). The terminal
+   stays the reference backend and Guardrail #1 is untouched.
+
+### Salvage record — `nora-voss/worktree` (24 commits, retired)
+
+Archived as tag **`archive/nora-voss-worktree`** before deletion; nothing is lost and any
+commit can be recovered with `git show archive/nora-voss-worktree`.
+
+| Item | Verdict | Reasoning |
+| :--- | :--- | :--- |
+| Far-tier skyline layering fix | **Adopted** (landed) | Real bug on master: an unconditional `break` on the first solid far cell meant the 180 m tier could only ever return one layer, so `max_height` never updated and the height test guarding the append was dead code. Measured: 0 → 268 columns with stacked distant silhouettes. Locked by `tests/test_far_tier_layering.py`. |
+| Perspective overhaul (`_v_proj`) | **Rejected** | Superseded. Master's `pixels_per_meter_at_1m` derives vertical FOV properly from the ray plane; Nora's is a cruder `(w/2)/plane_len/CELL_ASPECT`. Her branch also uses the **reciprocal** `CELL_ASPECT` convention (2.0 vs master's 0.5), so merging would silently invert vertical scale. |
+| `src/world/scale.py` | **Rejected as a file, adopted as data** | A central scale registry is the right idea, but landing it now creates a second source of truth alongside `textures.py`. Its `FACADE_HEIGHTS_M` table is the reference data for **T-09** (`MaterialRegistry`) — pull the values from the archive tag. |
+| `src/entities/vehicle_dims.py` | **Rejected as a file, adopted as data** | Good metric reference, but its only consumer was her sprite rework. Landing it alone is dead code. Reference data for **T-20** (sprite LOD). |
+| `test_visual_grounding.py`, `test_world_scale.py` | **Rejected as written, intent adopted** | Both assert against her projection maths. The *intent* — no sunken basements, no hovering sprites — is a genuine gap and becomes an acceptance criterion on **T-19**/**T-20**. |
+
+---
+
 ## Board
 
 | ID | Title | Phase | Size | Owner | Status |
@@ -54,6 +88,13 @@
 | T-30 | zipapp packaging & `--version` | 5 | M | — | Blocked (T-12) |
 | T-31 | Engine authoring guide + refreshed demo | 5 | M | — | Blocked (T-11) |
 | T-32 | Branch hygiene, re-measure, tag v1.0 | 5 | S | — | Blocked (all) |
+| **T-33** | **ASCII glyph luminance ramp** | **3** | **M** | — | **Ready** |
+| **T-34** | **Sky as glyphs, not background fill** | **3** | **M** | — | **Ready** |
+| **T-35** | **Formalise the render-mode matrix** | **3** | **M** | — | Blocked (T-33, T-34) |
+| **T-36** | **`Display` backend interface** | **2** | **M** | — | Blocked (T-02) |
+| **T-37** | **Web canvas backend (timeboxed spike)** | **6** | **L** | — | Blocked (T-36) |
+| **T-38** | **Windows support** | **4** | **M** | — | Blocked (T-36) |
+| **T-39** | **Label audio experimental** | **4** | **S** | — | Ready |
 
 ---
 
@@ -352,17 +393,23 @@ A wall should read as a specific door, not a well-textured rectangle.
 - ASCII purity preserved in `--no-color`.
 
 ### T-18 — Sub-cell resolution via quadrant blocks
-**Size** M · **Branch** `<you>/subcell-blocks` · **Depends** T-14 · **Blocked**
+**Size** M · **Branch** `<you>/subcell-blocks` · **Depends** T-14, T-35 · **Blocked**
 **Owns**: `src/engine/subcell.py` (new), `src/renderer/screen_buffer.py` transliteration
 
 Closes the last stretch: even L4 leaves ~2.5 cells per texel at 2 m.
 
+**Scope correction (Leon, 2026-08-24)**: quadrant blocks are Unicode box-drawing glyphs,
+not ASCII. They therefore belong to the **`blocks` render mode only** and must never
+appear in `ascii-color` or `ascii-mono`, where the character set is the whole point. In
+the ASCII modes the equivalent near-field resolution comes from T-33's glyph ramp and
+T-17's decals instead. Do not start this before T-35 has established the mode matrix.
+
 **Done when**
 - 2×2 coverage mask per cell → quadrant glyph (`▘▝▖▗▀▄▌▐▚▞█`), 16-entry table.
-- Engaged below ~5 m only.
-- Transliteration entries added so `--no-color` still emits pure ASCII —
-  `test_render_modes.py` must stay green untouched.
-- A/B screenshots at 2 m and 4 m attached to the PR.
+- Engaged below ~5 m and **only** in `blocks` mode.
+- ASCII modes are provably unaffected: `test_render_modes.py` green, plus an assertion
+  that no non-ASCII glyph reaches the buffer in either ASCII mode.
+- A/B captures at 2 m and 4 m attached to the PR.
 
 ### T-19 — Floor & ceiling LOD parity
 **Size** M · **Branch** `<you>/floor-lod` · **Depends** T-14, T-05 · **Blocked**
@@ -491,16 +538,162 @@ STATUS and README is re-measured on the day of tagging; `v1.0` tagged.
 
 ---
 
-## Open decisions for Leon
+# Phase 3b — Render aesthetic (the ASCII identity)
 
-These shape the plan and I do not want to assume:
+> Added after Leon's 2026-08-24 direction. **Measured starting point**: `--no-fill`
+> already emits zero background codes (verified: 1,236 → 0 `48;2;` sequences), so the
+> mode Leon wants mechanically exists. It looks weak for two specific reasons, both
+> fixable and both ticketed here:
+> 1. Wall glyphs come straight from the texture pattern and encode **no luminance** —
+>    a lit wall and a shadowed wall print the identical `#####%######%#%`. All the depth
+>    and lighting information lives in the colour, so stripping the fill strips the form.
+> 2. **23% of sky cells carry a space glyph** with only a background colour, so with
+>    fills off the sky disappears into the terminal background entirely.
 
-1. **Windows support** — currently out of scope (POSIX `termios`/`tty`). Confirm we
-   document macOS/Linux only for v1.0, or add it as a phase.
-2. **Audio** — harden it, or label it experimental for v1.0? It shells out to external
-   players and re-runs `which` on every play.
-3. **`nora-voss/worktree`** — 24 unmerged commits including a perspective overhaul that
-   overlaps Phase 3 territory. Land it before Phase 3 starts, or retire it? This is the
-   biggest sequencing risk on the board.
-4. **Unicode blocks** — T-18 needs quadrant glyphs in colour mode (ASCII mode still
-   transliterates). Confirm that fits the "pure ASCII" identity.
+### T-33 — ASCII glyph luminance ramp
+**Size** M · **Branch** `<you>/glyph-ramp` · **Depends** none · **Ready**
+**Owns**: `src/engine/glyph_ramp.py` (new), `src/world/textures.py` ramp declarations
+
+The core of the ASCII identity. In ASCII modes the **character must carry the shading**,
+not just the colour. Each material declares a density ramp (e.g. `" .:-=+*#%@"` plus
+structural glyphs), and the final glyph is chosen from computed luminance — shade,
+ambient, point lights, fog — rather than read verbatim from the texture.
+
+**Done when**
+- A luminance → glyph selection stage sits between shading and the buffer write.
+- Per-material ramps, art-directable: glass reads differently from brick from concrete,
+  and structural glyphs (mullions, courses, lintels) survive at their own luminance bands.
+- A lit wall and a shadowed wall are **visibly different with colour disabled** — assert
+  it: glyph histograms for the same wall at two ambient levels must differ.
+- Ramp choice is stable under small luminance jitter (no flicker); Bayer dithering applies
+  to ramp *index*, not to colour, in ASCII modes.
+- Golden coverage for `ascii-color` and `ascii-mono`.
+
+### T-34 — Sky as glyphs, not background fill
+**Size** M · **Branch** `<you>/ascii-sky` · **Depends** none · **Ready**
+**Owns**: `src/engine/raycast/sky_renderer.py` (post T-04; today `raycaster.py` sky block)
+
+The sky is currently a background-colour gradient behind space glyphs — the clearest case
+of "colour doing work the characters should do". With fills off there is no sky at all.
+
+**Done when**
+- Sky renders as glyph density: a vertical ramp from zenith to horizon, cloud structure as
+  stippled characters, stars and moon as glyphs (they already are).
+- The gradient reads as a gradient in `ascii-mono` with no colour whatsoever.
+- No space-glyph-plus-background cells remain in the sky band in ASCII modes.
+- Existing `test_render_modes.py:41` sky-ASCII contract still holds.
+- Same treatment audited for the floor/ground band, which has the same failure mode.
+
+### T-35 — Formalise the render-mode matrix
+**Size** M · **Branch** `<you>/render-modes` · **Depends** T-33, T-34 · **Blocked**
+**Owns**: `main.py` flags, `src/renderer/screen_buffer.py` mode plumbing, `docs/CONTROLS.md`
+
+Today's modes are flags that *subtract* from a filled-cell default (`--no-fill`,
+`--no-color`). Make them first-class, named, and individually art-directed.
+
+**Done when**
+- `--render blocks|ascii-color|ascii-mono` with `--no-fill`/`--no-color` kept as aliases.
+- **`ascii-color`** — coloured ASCII glyphs on the terminal's own background, zero
+  background fills. This is the mode Leon wants and it becomes the **default**.
+- **`blocks`** — today's filled-cell look, retained as an explicit choice.
+- **`ascii-mono`** — no colour at all; form carried entirely by glyph density.
+- In-game cycling (a key binding) so modes can be compared live.
+- Golden-frame coverage for all three; each is judged on its own terms, not as a
+  degradation of another.
+- `README.md` and `docs/CONTROLS.md` document the aesthetic intent of each mode.
+
+---
+
+# Phase 2b — Display backend
+
+### T-36 — `Display` backend interface
+**Size** M · **Branch** `<you>/display-backend` · **Depends** T-02 · **Blocked**
+**Owns**: `src/renderer/display.py` (new), `src/renderer/terminal.py`, `src/game.py` flush path
+
+The renderer already produces a grid of `(glyph, fg, bg)` cells — that is inherently
+backend-agnostic. Nothing declares it, so the ANSI terminal is hardwired as the only
+possible output. This is the same abstraction move as the `Scene` protocol, applied to
+output, and it is what makes the terminal-vs-web question **reversible instead of a bet**.
+
+**Done when**
+- A `Display` interface: `size()`, `present(buffer)`, `poll_input()`, `enter()`, `exit()`.
+- `TerminalDisplay` wraps the current ANSI + termios path with **no behaviour change** —
+  golden digests and the pty restore tests unchanged.
+- `ScreenBuffer` no longer knows about ANSI; escape-sequence generation moves into the
+  terminal backend.
+- A `NullDisplay` for headless benchmarking and tests.
+- Input is part of the backend contract, since a web backend has entirely different input.
+
+### T-37 — Web canvas backend (timeboxed spike)
+**Size** L · **Branch** `<you>/web-backend` · **Depends** T-36 · **Blocked** · **Phase 6**
+**Owns**: `src/renderer/web_display.py` (new), `web/**` (new)
+
+**Timebox: one shift.** Deliver a judgement, not a product. The terminal remains the
+reference backend regardless of outcome; this exists to find out whether the terminal is
+the ceiling on ASCII fidelity.
+
+Why it is worth trying: the terminal caps us at a fixed font, a ~1:2 cell aspect we can
+only correct for rather than control, ~8,000 cells at 160×50, and ANSI throughput. A
+canvas backend controls the font and cell aspect exactly, renders 400×150 glyphs without
+strain, can push the glyph atlas to the GPU so frame budget stops constraining LOD and
+decals, gets real key-down/key-up and pointer lock, is shareable by URL, and delivers
+Windows and mobile for free. **It is still 100% ASCII** — the aesthetic is the glyph grid,
+not the terminal that happens to host it.
+
+**Done when**
+- Zero-dependency transport: stdlib `http.server` serving a static page plus a frame
+  stream. Do **not** add a websocket library.
+- The same `Game` loop drives it through `Display` with no engine changes.
+- A written recommendation with measured numbers: cells/frame, FPS, latency, input
+  fidelity, and an honest assessment of whether it should become the primary target.
+- Explicitly answers: does this unlock fidelity the terminal cannot reach?
+
+### T-38 — Windows support
+**Size** M · **Branch** `<you>/windows-support` · **Depends** T-36 · **Blocked**
+**Owns**: `src/renderer/windows_display.py` (new), `.github/workflows/ci.yml`
+
+Confirmed wanted. Genuinely feasible stdlib-only — no dependency-guardrail risk.
+
+**Done when**
+- `msvcrt`-based non-blocking input backend (`kbhit`/`getwch`) behind the `Display`
+  contract, replacing the `termios`/`tty`/`select` path.
+- VT processing enabled via `ctypes` (`ENABLE_VIRTUAL_TERMINAL_PROCESSING`) so ANSI
+  truecolor works in Windows Terminal and modern conhost.
+- Resize handled by polling `os.get_terminal_size()` — Windows has no `SIGWINCH`.
+- Console mode restored on every exit path, including Ctrl+C and Ctrl+Break; pty-equivalent
+  test adapted for Windows.
+- `windows-latest` added to the CI matrix.
+- README platform support updated.
+
+---
+
+# Phase 4 addendum
+
+### T-39 — Label audio experimental
+**Size** S · **Branch** `<you>/audio-experimental` · **Depends** none · **Ready**
+**Owns**: `src/audio/soundscape.py` docstring, `main.py` help text, `README.md`, `STATUS.md`
+
+Leon's call: audio is not a v1.0 quality target. Make that explicit rather than ambiguous,
+and remove the two ways it can stall the main thread.
+
+**Done when**
+- `--audio` help text and README mark it **experimental**; mute-default is unchanged.
+- Sound-bank synthesis moves off the calling thread, so neither startup with `--audio` nor
+  pressing `V` can hitch a frame.
+- The per-play `which paplay` subprocess probe is cached once at init.
+- No hardening beyond that; the module is explicitly out of scope for v1.0 polish.
+
+---
+
+## Open decisions
+
+All four questions from the first pass are now answered — see **Decisions from Leon** at
+the top of this board. One new question is outstanding:
+
+1. **Does `ascii-color` become the default?** T-35 assumes yes, on Leon's stated
+   preference for coloured characters over coloured cells. That changes the look of every
+   screenshot and demo we have, so it is worth confirming before T-35 lands rather than
+   after.
+2. **If T-37's spike is convincing, does the web backend become the primary target?**
+   Deferred until there are measured numbers to argue over. The terminal stays supported
+   either way, so this can be decided late.
