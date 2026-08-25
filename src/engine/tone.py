@@ -47,6 +47,33 @@ def shade_quant(shade: float) -> int:
     return 0 if q < 0 else q
 
 
+# ---- Blend LUTs -------------------------------------------------------------
+# For a fixed target color T, precompute 33 rows (q = fd*32) mapping every
+# byte c to int(c + (T - c) * q/32). Turns six per-pixel float blends into
+# six list indexes. Targets are near-constant per scene (phase-fixed sky
+# bands, weather fog colors), so the cache stays tiny; keys quantized to
+# 4-bit channels to bound worst-case growth.
+
+_BLEND_CACHE: Dict[Tuple[int, int, int], Tuple[List[int], List[int], List[int]]] = {}
+
+
+def get_blend_lut(target):
+    """(tbl_r, tbl_g, tbl_b): per-channel tables indexed [q][byte], q in 0..32."""
+    key = (target[0] & ~3, target[1] & ~3, target[2] & ~3)
+    tbls = _BLEND_CACHE.get(key)
+    if tbls is None:
+        tr, tg, tb = key
+        tbls = (
+            [[int(c + (tr - c) * q / 32.0) for c in range(256)] for q in range(33)],
+            [[int(c + (tg - c) * q / 32.0) for c in range(256)] for q in range(33)],
+            [[int(c + (tb - c) * q / 32.0) for c in range(256)] for q in range(33)],
+        )
+        if len(_BLEND_CACHE) > 64:
+            _BLEND_CACHE.clear()
+        _BLEND_CACHE[key] = tbls
+    return tbls
+
+
 def get_shade_lut(shade: float) -> List[int]:
     """256-entry sRGB-correct multiplication table for one shade factor.
 

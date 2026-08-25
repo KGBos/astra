@@ -193,8 +193,9 @@ class PedestrianManager:
         """Collects dynamic directional sprites for all active pedestrians."""
         sprites = []
         for ped in self.pedestrians:
-            # Check render range (within 35 units)
+            # Check render range (within 55 units — matches the long-range
+            # draw distance; sub-cell sprites are cheap and add depth)
             dist_sq = (ped.x - cam_x) ** 2 + (ped.y - cam_y) ** 2
-            if dist_sq < 1225.0:
+            if dist_sq < 3025.0:
                 sprites.append(ped.get_sprite_for_camera(cam_x, cam_y))
         return sprites
