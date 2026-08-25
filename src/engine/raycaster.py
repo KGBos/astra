@@ -1241,7 +1241,7 @@ class Raycaster:
 
                 # Art-directed glyph density from final shaded luminance
                 # (includes point-light pools: lit ground reads denser)
-                if floor_ramps_on and not is_literal and not char.isalnum():
+                if floor_ramps_on and not is_literal:
                     gr = GROUND_RAMPS.get(ftype)
                     if gr is not None:
                         lum = (fg[0] * 54 + fg[1] * 183 + fg[2] * 19) >> 8

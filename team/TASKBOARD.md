@@ -88,10 +88,7 @@ commit can be recovered with `git show archive/nora-voss-worktree`.
 | T-30 | zipapp packaging & `--version` | 5 | M | — | Blocked (T-12) |
 | T-31 | Engine authoring guide + refreshed demo | 5 | M | — | Blocked (T-11) |
 | T-32 | Branch hygiene, re-measure, tag v1.0 | 5 | S | — | Blocked (all) |
-| T-33 | Per-material luminance→glyph ramps | 3b | M | **Nora Voss** ⚙️ | In progress (`nora-voss/t33-material-glyph-ramps`) |
-| T-34 | Sky drawn as glyph density | 3b | M | — | Ready (independent of T-33) |
-| T-35 | Formal mode matrix (`blocks`/`ascii-color`/`ascii-mono`), art-directed | 3b | M | — | Ready (after T-33/T-34 land) |
-| **T-33** | **ASCII glyph luminance ramp** | **3** | **M** | — | **Ready** |
+| **T-33** | **ASCII glyph luminance ramp** | **3** | **M** | **Nora Voss** ⚙️ | **In progress** (`nora-voss/t33-material-glyph-ramps`) |
 | **T-34** | **Sky as glyphs, not background fill** | **3** | **M** | — | **Ready** |
 | **T-35** | **Formalise the render-mode matrix** | **3** | **M** | — | Blocked (T-33, T-34) |
 | **T-36** | **`Display` backend interface** | **2** | **M** | — | Blocked (T-02) |

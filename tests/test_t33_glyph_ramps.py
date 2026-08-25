@@ -120,8 +120,8 @@ class TestArtDirectedNoFill(unittest.TestCase):
         far = [order[c] for c in
                (buf.pixels[26][x].char for x in range(4, 9)) if c in order]
         self.assertTrue(near, "no ground ramp glyphs under the lamp")
-        if far:
-            self.assertGreater(sum(near) / len(near), sum(far) / len(far))
+        self.assertTrue(far, "no far-field ground ramp glyphs to compare against")
+        self.assertGreater(sum(near) / len(near), sum(far) / len(far))
 
     def test_mono_nofill_frame_is_ascii_only(self):
         buf, _ = _render(use_background=False, use_color=False)
