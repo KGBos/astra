@@ -50,5 +50,37 @@ class TestRaycaster(unittest.TestCase):
         self.assertGreater(non_empty, 100)
 
 
+    def test_ragged_sprite_frames_are_normalized(self):
+        from src.entities.sprite import Sprite
+
+        # Malformed frame: chars rows wider/taller than their fg color rows.
+        spr = Sprite(
+            x=0, y=0, name="ragged",
+            chars=["@@@@@@@@", "@@"],
+            fg_colors=[[(200, 200, 200)] * 2],
+        )
+        for art_row, fg_row in zip(spr.chars, spr.fg_colors):
+            self.assertEqual(len(fg_row), len(art_row))
+        # Padded cells inherit the row's last known color.
+        self.assertEqual(spr.fg_colors[0][-1], (200, 200, 200))
+        self.assertEqual(len(spr.fg_colors), len(spr.chars))
+
+    def test_ragged_sprite_render_does_not_crash(self):
+        from src.entities.sprite import Sprite
+
+        spr = Sprite(
+            x=0, y=0, name="ragged",
+            chars=["@@@@@@@@", "@@"],
+            fg_colors=[[(200, 200, 200)] * 2],
+        )
+        self.raycaster.render(
+            camera=self.camera,
+            city_map=self.city_map,
+            sprites=[spr],
+            day_night=self.day_night,
+            buffer=self.buffer
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -31,7 +31,22 @@ class Sprite:
         self.chars = chars
         self.height = len(chars)
         self.width = len(chars[0]) if chars else 0
-        self.fg_colors = fg_colors
+
+        # Normalize color grids against the (possibly ragged) char grid so
+        # per-pixel sampling can never index out of range mid-render.
+        default_fg = (255, 255, 255)
+        norm_fg = []
+        for i, art_row in enumerate(chars):
+            row = list(fg_colors[i]) if i < len(fg_colors) and fg_colors[i] else []
+            target = len(art_row)
+            if not row:
+                row = [default_fg] * target
+            elif len(row) < target:
+                row = row + [row[-1]] * (target - len(row))
+            else:
+                row = row[:target]
+            norm_fg.append(row)
+        self.fg_colors = norm_fg
         self.bg_colors = bg_colors
         self.scale_x = scale_x
         self.scale_y = scale_y
