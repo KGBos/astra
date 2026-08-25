@@ -24,6 +24,7 @@ class PointLight:
 
     def __init__(self, x: float, y: float, color: Tuple[int, int, int],
                  radius: float, intensity: float):
+        """World-space emissive point: position, RGB tint, falloff radius."""
         self.x = x
         self.y = y
         self.radius = radius

@@ -501,6 +501,8 @@ class Raycaster:
         lights: Optional[List] = None,
         haze_col: Optional[Tuple[int, int, int]] = None
     ):
+        """Paints one wall column slice with texture, gamma shading,
+        point-light wash, Bayer dithering and distance haze."""
         texture = get_texture(hit.wall_type)
         if ppm is None:
             ppm = pixels_per_meter_at_1m(self.width, self.height, camera.plane.length())
@@ -1182,6 +1184,8 @@ class Raycaster:
         lights: Optional[List] = None,
         haze_col: Optional[Tuple[int, int, int]] = None
     ):
+        """Projects and paints billboard/volumetric sprites far-to-near with
+        z-buffer occlusion, gamma shading and per-sprite light sampling."""
         if ppm is None:
             ppm = pixels_per_meter_at_1m(self.width, self.height, camera.plane.length())
 
@@ -1675,7 +1679,9 @@ class Raycaster:
                     gg = lut[fg[1]]
                     b = lut[fg[2]]
                     g = grain_row[(x + grow) % bw]
-                    fm0 = fg[0] if fg[0] > fg[1] else fg[1]
+                    # Grain scales with SHADED darkness: compare post-LUT
+                    # channels, otherwise edge pixels overstate brightness
+                    fm0 = r if r > gg else gg
                     bm = b if b > fm0 else fm0
                     if bm < 84:
                         g *= 9.0
