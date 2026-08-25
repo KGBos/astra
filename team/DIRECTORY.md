@@ -37,7 +37,7 @@
 ## Cursor Platform (`team/cursor/`)
 | Name | Gender | Role | Emoji | Tier | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| *Open Slot* | - | Lead Systems Refactoring Engineer | - | Lead | Open |
+| **Theo Lindqvist** | Male | Lead Systems Refactoring Engineer | 🧭 | Lead | Active |
 | *Capacity* | - | Specialists & Associates | - | - | Unlimited |
 
 ---

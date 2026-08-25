@@ -15,7 +15,23 @@
 
 ## 3. Roadmap
 
-### NOW — Complete
+### NOW — Production Push (v1.0)
+The M1–M5 feature waves are complete; the project is now in a **production hardening
+push** toward v1.0. Plan and tickets:
+- **`docs/ROADMAP_PRODUCTION.md`** — phases, exit criteria, feature gaps
+- **`team/TASKBOARD.md`** — 32 pickable tickets with branches, file scope, acceptance criteria
+- **`docs/DESIGN_LOD_FIDELITY.md`** — distance-adaptive detail (the headline visual work)
+- **`docs/DESIGN_ENGINE_API.md`** — `Scene` abstraction so any 3D world can be rendered
+
+Three headline problems drive the push:
+1. **Perf regressed below guardrail** — 40 FPS @160×50 against the documented 60 FPS
+   budget. The §4 M4 row and §5 figures below are **stale and overstated**; T-01 re-measures.
+2. **Detail runs backwards** — the break-even for one texel per character cell is ~78 m,
+   so the entire near field is magnified (9.8 cells/texel at 8 m, 39 at 2 m).
+3. **Engine claim unenforced** — the renderer needs only 4 methods from the world, but
+   nothing declares that contract, so no one can bring their own scene.
+
+### PRIOR WAVES — Complete
 - [x] **Two-tier far-skyline raycaster** (Nora Voss): landed through double review gate; window portals, volumetric props, interiors system shipped with it (`integration/city-life-v1`)
 - [x] **Standing review gate on master**: exercised on every landing this wave (skyline ×2, city-life, M2, repair); findings tracked and closed pre-merge
 
