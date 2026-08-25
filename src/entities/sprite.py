@@ -159,8 +159,9 @@ def make_dumpster_sprite(x: float, y: float) -> Sprite:
 
 def make_neon_signpost_sprite(x: float, y: float, text: str = "NEON") -> Sprite:
     tag = f"<{text[:4]}>"
+    head = f"{tag}".ljust(6)[:6]
     chars = [
-        f" {tag} ",
+        head,
         "  ||  ",
         "  ||  ",
         " ==== "
