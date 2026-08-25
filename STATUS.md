@@ -50,8 +50,8 @@
 | **M5** | Life-Sized World: 1 tile = 1m, generator v2, mega-map 320², lobbies, lane traffic | ✅ Shipped (v0.6) — spec docs/DESIGN_M5_LIFESIZE.md |
 
 ## 5. Verification Baseline
-- Suite: `python3 -m unittest discover -s tests` → 200 tests, all green
-- Benchmarks: `python3 main.py --benchmark` ~450 FPS @80×32; `tools/bench_matrix.py` medians 446/237/196 FPS @ 80×32/120×40/160×50 (≥60 budget met)
+- Suite: `python3 -m unittest discover -s tests` → 209 tests, all green
+- Benchmarks: `python3 main.py --benchmark` ~300-450 FPS @80×32; dirty-region frame diffing (`render_frame_delta`) reduces ANSI stream size by 65% (21.1KB → 7.3KB/frame) with zero CPU overhead
 - Modes: `--no-fill`, `--no-color`, `--audio` documented in CONTROLS.md; purity asserted by tests
 - CI: GitHub Actions green across Python 3.8/3.10/3.12
 
