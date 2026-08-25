@@ -98,15 +98,22 @@ def canonical_frame(buffer):
 
     Row-major, every cell contributes glyph \\x1f fg \\x1f bg \\x1e. Stable
     across runs and Python versions (no hashing of Python objects involved).
+
+    Channels the buffer's render mode disables are masked to '-' so locked
+    digests only track values the terminal actually paints: ascii-mono
+    (use_color=False) masks foreground, and any mode without background fills
+    (use_background=False) masks background.
     """
+    show_fg = bool(getattr(buffer, "use_color", True))
+    show_bg = bool(getattr(buffer, "use_background", True))
     parts = []
     for row in buffer.pixels:
         for px in row:
             parts.append(px.char)
             parts.append("\x1f")
-            parts.append(_color_str(px.fg))
+            parts.append(_color_str(px.fg) if show_fg else "-")
             parts.append("\x1f")
-            parts.append(_color_str(px.bg))
+            parts.append(_color_str(px.bg) if show_bg else "-")
             parts.append("\x1e")
     return "".join(parts)
 
@@ -243,6 +250,9 @@ def _render(width, height, mode, camera, scene_map, sprites,
 def _capture_street(name, width, height, mode, hour, weather_spec=None,
                     headlights=False):
     city_map, camera, sx, sy = _base_city()
+    # Headlight state must be set BEFORE rendering: the raycaster reads it
+    # mid-frame (ground light pools), so a post-render assignment is dead code.
+    camera.headlights_on = headlights
     weather = None
     if weather_spec is not None:
         weather_type, settle_steps, wetness = weather_spec
@@ -251,7 +261,6 @@ def _capture_street(name, width, height, mode, hour, weather_spec=None,
     buffer = _render(width, height, mode, camera, city_map, sprites,
                      DayNightCycle(start_hour=hour), weather=weather,
                      flashlight_on=False)
-    camera.headlights_on = headlights
     return name, buffer
 
 

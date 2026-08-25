@@ -45,7 +45,9 @@ class TestMuteDefaultAudio(unittest.TestCase):
         unmuted = s.toggle_mute()
         self.assertTrue(unmuted)
         self.assertFalse(s.is_muted)
-        # First audible use builds the WAV bank and only now creates the tempdir
+        # First audible use builds the WAV bank on a background thread (T-39);
+        # wait for it, then the tempdir and cache must be populated
+        s.join_synthesis()
         self.assertIsNotNone(s.temp_dir)
         self.assertIn("horn", s.sound_cache)
         # Muting again flips state back without destroying the cache
@@ -56,6 +58,7 @@ class TestMuteDefaultAudio(unittest.TestCase):
     def test_cleanup_after_lazy_creation_removes_tempdir(self):
         s = SoundscapeManager(enabled=False)
         s.toggle_mute()
+        s.join_synthesis()
         temp_dir = s.temp_dir
         self.assertIsNotNone(temp_dir)
         s.cleanup()
