@@ -60,3 +60,11 @@ Online research pass (ASCII shading science + raycaster FX state of the art) dis
 - **Open-horizon edges**: rays leaving the city grid now see sky instead of the old out-of-bounds-solid phantom wall ring. `test_cast_ray_hit` was unknowingly passing on that phantom — now pins an explicit facade.
 - **Perf fight**: naive haze blending dropped 160×50 to 31 FPS. Fixes: cached per-target blend LUTs (`tone.get_blend_lut`, 33-row tables indexed [q][byte] — targets are phase-fixed so cache stays tiny), bg channels only blended when haze > 0.22, sprite cull set to 60 m (sub-cell specks beyond) with per-texel sprite haze removed entirely after it tanked the bench via `_blend_color` calls on every vehicle texel.
 - **Results**: 209/209 green; bench 145/88/44 FPS @80×32/120×40/160×50 — faster than the Rendering-2.0 baseline at small sizes while rendering 3x deeper.
+
+## Shift 5 — T-33: per-material luminance→glyph ramps (art-directed no-fill)
+- **Context**: PR #1 (Rendering 2.0 + 180 m tier) merged; Leon's v1.0 review made render aesthetic a headline concern — colored ASCII must mean colored *characters* on the terminal background, not colored cell fills. T-33/T-34/T-35 added to the board per `docs/ROADMAP_PRODUCTION.md` Phase 3b.
+- **Implementation**: every texture carries a curated dark→light ASCII ramp (`MATERIAL_RAMPS`, 7 material families); `is_literal_char()` protects signage letters/digits. In no-fill mode wall slices map shaded luminance → ramp glyph (Bayer-perturbed for band-free gradients); ground materials likewise via `GROUND_RAMPS`, water keeps its wave glyphs, road markings stay literal.
+- **Ordering matters**: glyph density reads shade→light-wash luminance (pre-haze), so streetlamp pools visibly densify the character field around them — light now sculpts the text itself.
+- **Process note**: found Selene's session actively using `.worktrees/nora-voss` (T-02 golden harness committed there as `bd7b43e`); parked nothing, moved to task-scoped `.worktrees/nora-voss-t33` and left a collision memo in her inbox.
+- **Results**: 223/223 tests green (+8 new in `test_t33_glyph_ramps.py`: ramp data validity, signage survival, fill-mode byte-compat, light-density response on walls and ground, mono ASCII-only). Bench 151/107/44 FPS — fill path within noise of master.
+- **Next**: T-34 sky-as-glyph-density; T-35 mode matrix once both land.

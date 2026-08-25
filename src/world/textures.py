@@ -7,6 +7,30 @@ height_mult is the facade height in true metres (1 tile = 1 m).
 from typing import Dict, Tuple, List
 
 
+# ---- Per-material luminance -> glyph ramps (T-33) ---------------------------
+# Curated dark->light ASCII ladders. Ordered by increasing ink coverage so a
+# brighter surface sample selects a denser character. Literal art (signage
+# letters, digits) never maps through these; see is_literal_char().
+MATERIAL_RAMPS = {
+    "glass":     " .,:;!i|tIfX#",
+    "metal":     " .-:=ilctfkbh#",
+    "brick":     " ..,rnmbmqg#",
+    "wood":      " ..,lcunmdkb#",
+    "stone":     " ..,oxnxdm%#",
+    "plaster":   " .,~ntmkdb#",
+    "data":      " .:;i!|1IL#",
+}
+
+# Characters that carry literal meaning (signage, labels, data motifs) and
+# must survive glyph-ramp mapping untouched.
+_LITERAL_EXTRA = set("!0123456789")
+
+
+def is_literal_char(ch: str) -> bool:
+    """True when a texture cell carries literal art (letters/digits/labels)."""
+    return ch.isalnum() or ch in _LITERAL_EXTRA
+
+
 class AsciiTexture:
     def __init__(
         self,
@@ -17,7 +41,8 @@ class AsciiTexture:
         fg_colors: List[List[Tuple[int, int, int]]],
         bg_colors: List[List[Tuple[int, int, int]]],
         height_mult: float = 3.0,
-        is_transparent: bool = False
+        is_transparent: bool = False,
+        ramp: str = MATERIAL_RAMPS["stone"]
     ):
         self.name = name
         self.width = width
@@ -27,6 +52,8 @@ class AsciiTexture:
         self.bg_colors = bg_colors
         self.height_mult = height_mult
         self.is_transparent = is_transparent
+        # Luminance->glyph ladder for the art-directed no-fill render mode
+        self.ramp = ramp
 
     def sample(self, u: float, v: float) -> Tuple[str, Tuple[int, int, int], Tuple[int, int, int]]:
         """
@@ -82,7 +109,8 @@ def build_skyscraper_glass() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("SKYSCRAPER_GLASS", w, h, chars, fg_colors, bg_colors, height_mult=40.0)
+    return AsciiTexture("SKYSCRAPER_GLASS", w, h, chars, fg_colors, bg_colors, height_mult=40.0,
+                        ramp=MATERIAL_RAMPS["glass"])
 
 
 def build_skyscraper_neon() -> AsciiTexture:
@@ -116,7 +144,8 @@ def build_skyscraper_neon() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("SKYSCRAPER_NEON", w, h, chars, fg_colors, bg_colors, height_mult=60.0)
+    return AsciiTexture("SKYSCRAPER_NEON", w, h, chars, fg_colors, bg_colors, height_mult=60.0,
+                        ramp=MATERIAL_RAMPS["metal"])
 
 
 def build_brick_brownstone() -> AsciiTexture:
@@ -156,7 +185,8 @@ def build_brick_brownstone() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("BRICK_BROWNSTONE", w, h, chars, fg_colors, bg_colors, height_mult=11.0)
+    return AsciiTexture("BRICK_BROWNSTONE", w, h, chars, fg_colors, bg_colors, height_mult=11.0,
+                        ramp=MATERIAL_RAMPS["brick"])
 
 
 def build_storefront_ramen() -> AsciiTexture:
@@ -194,7 +224,8 @@ def build_storefront_ramen() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("STOREFRONT_RAMEN", w, h, chars, fg_colors, bg_colors, height_mult=4.0)
+    return AsciiTexture("STOREFRONT_RAMEN", w, h, chars, fg_colors, bg_colors, height_mult=4.0,
+                        ramp=MATERIAL_RAMPS["wood"])
 
 
 def build_concrete_warehouse() -> AsciiTexture:
@@ -216,7 +247,8 @@ def build_concrete_warehouse() -> AsciiTexture:
             if chars[y][x] in ('/', '\\'):
                 fg_colors[y][x] = (255, 200, 0)  # Hazard stripes
                 bg_colors[y][x] = (40, 30, 0)
-    return AsciiTexture("CONCRETE_WAREHOUSE", w, h, chars, fg_colors, bg_colors, height_mult=9.0)
+    return AsciiTexture("CONCRETE_WAREHOUSE", w, h, chars, fg_colors, bg_colors, height_mult=9.0,
+                        ramp=MATERIAL_RAMPS["stone"])
 
 
 def build_hotel_neon() -> AsciiTexture:
@@ -250,7 +282,8 @@ def build_hotel_neon() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("HOTEL_NEON", w, h, chars, fg_colors, bg_colors, height_mult=18.0)
+    return AsciiTexture("HOTEL_NEON", w, h, chars, fg_colors, bg_colors, height_mult=18.0,
+                        ramp=MATERIAL_RAMPS["metal"])
 
 
 def build_arcology_monument() -> AsciiTexture:
@@ -288,7 +321,8 @@ def build_arcology_monument() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("ARCOLOGY_MONUMENT", w, h, chars, fg_colors, bg_colors, height_mult=50.0)
+    return AsciiTexture("ARCOLOGY_MONUMENT", w, h, chars, fg_colors, bg_colors, height_mult=50.0,
+                        ramp=MATERIAL_RAMPS["metal"])
 
 
 def build_megastructure_matrix() -> AsciiTexture:
@@ -322,7 +356,8 @@ def build_megastructure_matrix() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("MEGASTRUCTURE_MATRIX", w, h, chars, fg_colors, bg_colors, height_mult=45.0)
+    return AsciiTexture("MEGASTRUCTURE_MATRIX", w, h, chars, fg_colors, bg_colors, height_mult=45.0,
+                        ramp=MATERIAL_RAMPS["data"])
 
 
 def build_industrial_silo() -> AsciiTexture:
@@ -357,7 +392,8 @@ def build_industrial_silo() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("INDUSTRIAL_SILO", w, h, chars, fg_colors, bg_colors, height_mult=14.0)
+    return AsciiTexture("INDUSTRIAL_SILO", w, h, chars, fg_colors, bg_colors, height_mult=14.0,
+                        ramp=MATERIAL_RAMPS["metal"])
 
 
 def build_marina_dock() -> AsciiTexture:
@@ -392,7 +428,8 @@ def build_marina_dock() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("MARINA_DOCK", w, h, chars, fg_colors, bg_colors, height_mult=5.0)
+    return AsciiTexture("MARINA_DOCK", w, h, chars, fg_colors, bg_colors, height_mult=5.0,
+                        ramp=MATERIAL_RAMPS["wood"])
 
 
 def build_botanical_pavilion() -> AsciiTexture:
@@ -430,7 +467,8 @@ def build_botanical_pavilion() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("BOTANICAL_PAVILION", w, h, chars, fg_colors, bg_colors, height_mult=6.0)
+    return AsciiTexture("BOTANICAL_PAVILION", w, h, chars, fg_colors, bg_colors, height_mult=6.0,
+                        ramp=MATERIAL_RAMPS["glass"])
 
 
 def build_interior_wall() -> AsciiTexture:
@@ -468,7 +506,8 @@ def build_interior_wall() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("INTERIOR_WALL", w, h, chars, fg_colors, bg_colors, height_mult=3.0)
+    return AsciiTexture("INTERIOR_WALL", w, h, chars, fg_colors, bg_colors, height_mult=3.0,
+                        ramp=MATERIAL_RAMPS["plaster"])
 
 
 def build_doorway() -> AsciiTexture:
@@ -502,7 +541,8 @@ def build_doorway() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
 
-    return AsciiTexture("DOORWAY", w, h, chars, fg_colors, bg_colors, height_mult=2.5)
+    return AsciiTexture("DOORWAY", w, h, chars, fg_colors, bg_colors, height_mult=2.5,
+                        ramp=MATERIAL_RAMPS["glass"])
 
 
 def build_ramen_interior() -> AsciiTexture:
@@ -518,7 +558,8 @@ def build_ramen_interior() -> AsciiTexture:
         "========"
     ]
     fg, bg = _make_uniform_palette(8, 8, (255, 200, 100), (45, 25, 15))
-    return AsciiTexture("RAMEN_INTERIOR", 8, 8, chars, fg, bg, height_mult=3.0)
+    return AsciiTexture("RAMEN_INTERIOR", 8, 8, chars, fg, bg, height_mult=3.0,
+                        ramp=MATERIAL_RAMPS["wood"])
 
 
 def build_arcade_interior() -> AsciiTexture:
@@ -547,7 +588,8 @@ def build_arcade_interior() -> AsciiTexture:
                 bg_row.append((30, 10, 30))
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
-    return AsciiTexture("ARCADE_INTERIOR", 8, 8, chars, fg_colors, bg_colors, height_mult=3.0)
+    return AsciiTexture("ARCADE_INTERIOR", 8, 8, chars, fg_colors, bg_colors, height_mult=3.0,
+                        ramp=MATERIAL_RAMPS["metal"])
 
 
 def build_hotel_interior() -> AsciiTexture:
@@ -563,7 +605,8 @@ def build_hotel_interior() -> AsciiTexture:
         "\\======/"
     ]
     fg, bg = _make_uniform_palette(8, 8, (255, 230, 160), (35, 30, 25))
-    return AsciiTexture("HOTEL_INTERIOR", 8, 8, chars, fg, bg, height_mult=4.0)
+    return AsciiTexture("HOTEL_INTERIOR", 8, 8, chars, fg, bg, height_mult=4.0,
+                        ramp=MATERIAL_RAMPS["plaster"])
 
 
 def build_tower_lobby_interior() -> AsciiTexture:
@@ -606,7 +649,8 @@ def build_tower_lobby_interior() -> AsciiTexture:
         fg_colors.append(fg_row)
         bg_colors.append(bg_row)
     return AsciiTexture("TOWER_LOBBY_INTERIOR", w, h, chars,
-                        fg_colors, bg_colors, height_mult=8.0)
+                        fg_colors, bg_colors, height_mult=8.0,
+                        ramp=MATERIAL_RAMPS["stone"])
 
 
 def build_interior_textures() -> Dict[int, AsciiTexture]:

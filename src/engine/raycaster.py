@@ -11,7 +11,7 @@ from src.engine.tone import (get_shade_lut, SHADE_CACHE, get_blend_lut,
                              BAYER4, BAYER_MID, hash_noise, fbm_noise)
 from src.engine.lighting import collect_lights, make_player_headlight, strongest_light_at
 from src.world.city_map import CityMap, FloorType
-from src.world.textures import get_texture
+from src.world.textures import get_texture, is_literal_char
 from src.world.interiors import WALL_TYPE_INTERIOR
 from src.world.day_night import DayNightCycle
 from src.world.weather import WeatherSystem
@@ -29,6 +29,20 @@ def _blend_color(c1: Tuple[int, int, int], c2: Tuple[int, int, int], factor: flo
 
 
 CELL_ASPECT = 0.5
+
+# T-33: ground materials map through luminance->glyph ladders in art-directed
+# (no-fill) mode. WATER is excluded: its wave glyphs already carry form.
+GROUND_RAMPS = {
+    FloorType.ROAD_NS: " .,:;-=#",
+    FloorType.ROAD_EW: " .,:;-=#",
+    FloorType.INTERSECTION: " .,:;-=#",
+    FloorType.SIDEWALK: " .,:;!icx#",
+    FloorType.PLAZA_TILES: " ..,,oxdx#",
+    FloorType.COBBLESTONE: " ..,,oxnxm#",
+    FloorType.BRIDGE: " .-=ilcx#",
+    FloorType.WOOD_DECK: " .,,lcnukb#",
+    FloorType.PARK_GRASS: ' ..,",lrvwx#',
+}
 
 
 def pixels_per_meter_at_1m(screen_w: int, screen_h: int, plane_len: float) -> float:
@@ -505,8 +519,12 @@ class Raycaster:
         haze_col: Optional[Tuple[int, int, int]] = None
     ):
         """Paints one wall column slice with texture, gamma shading,
-        point-light wash, Bayer dithering and distance haze."""
+        point-light wash, Bayer dithering and distance haze. In no-fill mode
+        material surfaces map through the texture's luminance->glyph ramp so
+        characters carry the form on the terminal's own background."""
         texture = get_texture(hit.wall_type)
+        ramp = texture.ramp if not buffer.use_background else None
+        ramp_hi = len(texture.ramp) - 1
         if ppm is None:
             ppm = pixels_per_meter_at_1m(self.width, self.height, camera.plane.length())
 
@@ -619,13 +637,47 @@ class Raycaster:
                 r = lut[fg_raw[0]]
                 g = lut[fg_raw[1]]
                 bch = lut[fg_raw[2]]
+
+                # Point-light wash lands on the surface BEFORE the atmosphere,
+                # and glyph density reads that lit luminance
+                if has_wash:
+                    nr = r + wash_r
+                    ng = g + wash_g
+                    nb = bch + wash_b
+                    if nr > 255.0:
+                        nr = 255.0
+                    if ng > 255.0:
+                        ng = 255.0
+                    if nb > 255.0:
+                        nb = 255.0
+                else:
+                    nr = float(r)
+                    ng = float(g)
+                    nb = float(bch)
+
                 # Bright texels (lit windows, neon) pierce the haze
-                if fd > 0.05 and r + g + bch > self.BRIGHT_PIERCE_SUM:
+                if fd > 0.05 and nr + ng + nb > self.BRIGHT_PIERCE_SUM:
                     fd *= 0.35
+
+                if ramp is not None:
+                    raw_ch = tex_chars[ty][tx]
+                    if not is_literal_char(raw_ch):
+                        lum = (int(nr) * 54 + int(ng) * 183 + int(nb) * 19) >> 8
+                        ri = int(lum * ramp_hi * 0.00392156862745 + (b - mid) * 1.5)
+                        if ri < 0:
+                            ri = 0
+                        elif ri > ramp_hi:
+                            ri = ramp_hi
+                        glyph = texture.ramp[ri]
+                    else:
+                        glyph = raw_ch
+                else:
+                    glyph = tex_chars[ty][tx]
+
                 q32 = int(fd * 32.0)
-                r = bl_r[q32][r]
-                g = bl_g[q32][g]
-                bch = bl_b[q32][bch]
+                r = bl_r[q32][int(nr)]
+                g = bl_g[q32][int(ng)]
+                bch = bl_b[q32][int(nb)]
                 if fd > 0.22:
                     br = lut[bg_raw[0]]
                     bg_g = lut[bg_raw[1]]
@@ -639,15 +691,6 @@ class Raycaster:
                     bb = lut[bg_raw[2]]
 
                 if has_wash:
-                    nr = r + wash_r
-                    ng = g + wash_g
-                    nb = bch + wash_b
-                    if nr > 255.0:
-                        nr = 255.0
-                    if ng > 255.0:
-                        ng = 255.0
-                    if nb > 255.0:
-                        nb = 255.0
                     nbr = br + wash_r
                     nbg = bg_g + wash_g
                     nbb = bb + wash_b
@@ -657,11 +700,11 @@ class Raycaster:
                         nbg = 255.0
                     if nbb > 255.0:
                         nbb = 255.0
-                    set_pixel(screen_x, y, tex_chars[ty][tx],
-                              (int(nr), int(ng), int(nb)),
+                    set_pixel(screen_x, y, glyph,
+                              (r, g, bch),
                               (int(nbr), int(nbg), int(nbb)))
                 else:
-                    set_pixel(screen_x, y, tex_chars[ty][tx], (r, g, bch),
+                    set_pixel(screen_x, y, glyph, (r, g, bch),
                               (br, bg_g, bb))
             return
 
@@ -671,7 +714,8 @@ class Raycaster:
             fg_raw = tex_fg[ty][tx]
             bg_raw = tex_bg[ty][tx]
 
-            q = int((shade + (bayer_col[y & 3] - mid) * d_amp) * 64.0 + 0.5)
+            b_y = bayer_col[y & 3]
+            q = int((shade + (b_y - mid) * d_amp) * 64.0 + 0.5)
             lut = SHADE_CACHE.get(q)
             if lut is None:
                 lut = get_shade_lut(q / 64.0)
@@ -679,6 +723,7 @@ class Raycaster:
             g = lut[fg_raw[1]]
             bch = lut[fg_raw[2]]
 
+            # Point-light wash first; glyph density reads the LIT luminance
             if has_wash:
                 nr = r + wash_r
                 ng = g + wash_g
@@ -689,6 +734,31 @@ class Raycaster:
                     ng = 255.0
                 if nb > 255.0:
                     nb = 255.0
+            else:
+                nr = float(r)
+                ng = float(g)
+                nb = float(bch)
+
+            if ramp is not None:
+                raw_ch = tex_chars[ty][tx]
+                if not is_literal_char(raw_ch):
+                    lum = (int(nr) * 54 + int(ng) * 183 + int(nb) * 19) >> 8
+                    ri = int(lum * ramp_hi * 0.00392156862745 + (b_y - mid) * 1.5)
+                    if ri < 0:
+                        ri = 0
+                    elif ri > ramp_hi:
+                        ri = ramp_hi
+                    glyph = texture.ramp[ri]
+                else:
+                    glyph = raw_ch
+            else:
+                glyph = tex_chars[ty][tx]
+
+            r = int(nr)
+            g = int(ng)
+            bch = int(nb)
+
+            if has_wash:
                 nbr = lut[bg_raw[0]] + wash_r
                 nbg = lut[bg_raw[1]] + wash_g
                 nbb = lut[bg_raw[2]] + wash_b
@@ -698,11 +768,11 @@ class Raycaster:
                     nbg = 255.0
                 if nbb > 255.0:
                     nbb = 255.0
-                set_pixel(screen_x, y, tex_chars[ty][tx],
-                          (int(nr), int(ng), int(nb)),
+                set_pixel(screen_x, y, glyph,
+                          (r, g, bch),
                           (int(nbr), int(nbg), int(nbb)))
             else:
-                set_pixel(screen_x, y, tex_chars[ty][tx],
+                set_pixel(screen_x, y, glyph,
                           (r, g, bch),
                           (lut[bg_raw[0]], lut[bg_raw[1]], lut[bg_raw[2]]))
 
@@ -928,6 +998,8 @@ class Raycaster:
         get_floor_type = city_map.get_floor_type
 
         ascii_translate = None if buffer.use_color else ASCII_TRANSLATION.get
+        # T-33: art-directed mode — ground glyphs respond to shaded luminance
+        floor_ramps_on = not buffer.use_background
         eye_m = camera.eye_m
 
         ray_dir_x0 = camera.dir.x - camera.plane.x
@@ -1026,6 +1098,7 @@ class Raycaster:
             row = pixels[y]
 
             for x in range(width):
+                is_literal = False
                 while ev < n_pools and pools[ev][0] == x:
                     p_ = pools[ev]
                     active_pools.append([p_[2] - floor_x, p_[3] - floor_y,
@@ -1080,6 +1153,7 @@ class Raycaster:
                     is_center_line = (ftype == FloorType.ROAD_NS and abs(fx_frac - 0.5) < 0.08) or \
                                      (ftype == FloorType.ROAD_EW and abs(fy_frac - 0.5) < 0.08)
                     if is_center_line:
+                        is_literal = True
                         char = '=' if ftype == FloorType.ROAD_EW else '|'
                         fg = (lut[255], lut[220], lut[0])
                         bg = (lut[40], lut[40], lut[45])
@@ -1164,6 +1238,20 @@ class Raycaster:
                     q32 = int(fd * 32.0)
                     fg = (fl_r[q32][fg[0]], fl_g[q32][fg[1]], fl_b[q32][fg[2]])
                     bg = (fl_r[q32][bg[0]], fl_g[q32][bg[1]], fl_b[q32][bg[2]])
+
+                # Art-directed glyph density from final shaded luminance
+                # (includes point-light pools: lit ground reads denser)
+                if floor_ramps_on and not is_literal and not char.isalnum():
+                    gr = GROUND_RAMPS.get(ftype)
+                    if gr is not None:
+                        lum = (fg[0] * 54 + fg[1] * 183 + fg[2] * 19) >> 8
+                        gri_hi = len(gr) - 1
+                        ri = int(lum * gri_hi * 0.00392156862745 + (bayer_row[x & 3] - mid) * 1.5)
+                        if ri < 0:
+                            ri = 0
+                        elif ri > gri_hi:
+                            ri = gri_hi
+                        char = gr[ri]
 
                 if ascii_translate is not None and not char.isascii():
                     char = ascii_translate(char, '?')
