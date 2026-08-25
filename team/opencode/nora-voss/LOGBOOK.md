@@ -53,3 +53,10 @@ Online research pass (ASCII shading science + raycaster FX state of the art) dis
 **Results**: 209/209 tests green; bench matrix 126 FPS @80×32 / 94 @120×40 / 64 @160×50 (floor 30) with every effect live — pre-upgrade baseline was 342 FPS with none of them. New `tools/render_snapshots.py` writes ANSI snapshots (noon/sunset/fog/night/beams/rain) for visual QA.
 
 **Next**: optional god-rays at half-res; shadow-casting lightmap if we ever accept an optional accel dependency; palette clustering for 256-color terminals.
+
+## Shift 4 (continued) — 3x render distance: 180 m far tier + aerial perspective
+- **Far tier**: FAR_MAX_DIST 60→180 m, initial stride 1.5→1.2 with growth ×1.12→×1.15 (~40 samples worst-case per open column). MAX_LAYERS briefly tried at 4 — pure overdraw, reverted to 3.
+- **Aerial perspective**: beyond ~12 m walls and ~16 m ground rows blend exponentially toward the sky-band color (`HAZE_K=0.011`, caps 0.85/0.88) so distant towers read as layered haze silhouettes instead of black. Weather fog still takes precedence when active. Bright texels (lit windows, neon) pierce the haze at 35% strength.
+- **Open-horizon edges**: rays leaving the city grid now see sky instead of the old out-of-bounds-solid phantom wall ring. `test_cast_ray_hit` was unknowingly passing on that phantom — now pins an explicit facade.
+- **Perf fight**: naive haze blending dropped 160×50 to 31 FPS. Fixes: cached per-target blend LUTs (`tone.get_blend_lut`, 33-row tables indexed [q][byte] — targets are phase-fixed so cache stays tiny), bg channels only blended when haze > 0.22, sprite cull set to 60 m (sub-cell specks beyond) with per-texel sprite haze removed entirely after it tanked the bench via `_blend_color` calls on every vehicle texel.
+- **Results**: 209/209 green; bench 145/88/44 FPS @80×32/120×40/160×50 — faster than the Rendering-2.0 baseline at small sizes while rendering 3x deeper.
