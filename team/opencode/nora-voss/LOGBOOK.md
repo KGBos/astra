@@ -35,3 +35,21 @@ Ported four engine techniques from the ASCII City reference into the pure-Python
 - **Night City skyline**: tower height_mults boosted (Neon 3.2→7.0, Glass 2.5→5.0, Arcology 3.5→8.0, Megastructure 3.0→6.0, Hotel 2.0→3.5) while docks/historic stay low for canyon contrast; downtown/financial/neon-district palettes now weighted toward tall neon masses.
 - **Live-sync hazard confirmed**: the integration pipeline snapshots the live tree mid-edit. This turn it regressed raycaster.py to pre-`d91d97f` (losing the reviewer's window-frame fix). Re-applied their exact patch via `git apply`. Anyone editing engine files: re-run the full suite immediately before handing off.
 - **Results**: 114/114 tests green (+4: car face semantics, police siren both faces, skyline height floor, downtown tower-share weighting); benchmark median 282.6 FPS vs 245 pre-session baseline (taller towers improve the covered-top early-out).
+
+## Shift 4 — Rendering 2.0: research-driven ASCII pipeline upgrade
+Online research pass (ASCII shading science + raycaster FX state of the art) distilled into six shipped systems, all pure-stdlib and ASCII-glyph-safe:
+
+1. **Gamma-correct tone mapping** (`src/engine/tone.py`): sRGB-space shade multipliers replaced by linearize→multiply→re-encode LUTs, cached per 1/64 shade bucket (`SHADE_CACHE` for call-free hot-loop lookups). Fixes ~2x mid-tone luminance error; night scenes keep detail instead of crushing to black.
+2. **Bayer 4×4 ordered dithering**: zero-mean perturbation of wall/floor shade factors and fog blend factors — kills gradient banding in fog/distance shading while staying temporally stable (no white-noise shimmer).
+3. **Point-light engine** (`src/engine/lighting.py`): emissive sprites (streetlamps, neon signs, vending machines, vehicles) become per-frame point lights with sqrt-free quadratic falloff. Ground pools render in the floor caster via per-row line-culling + projected-span active sweep (incremental delta updates); walls get a per-column light wash sampled at the face point; non-luminous sprites get one light sample each. Player high-beams spawn a forward pool light.
+4. **Wet-road reflections** (`_render_wet_reflections`): screen-space vertical light smears below the horizon with hash-noise ripple jitter, z-buffer occlusion per column, wetness-scaled.
+5. **Post-FX** (`_postfx`): bloom-lite (threshold-214 low-res max-energy dilation, bounded adds), vignette (cached multiplier grid through gamma LUT buckets), subtle darkness-scaled film grain. Color mode only; mono mode untouched.
+6. **Sky upgrade**: value-noise FBM cloud layer (wind-drifted, phase-tinted, stride-2 sampled), analytic stars with game-clock twinkle phases, hour-driven moon disc with drifting terminator.
+
+**Incidents**: (a) initial `_tick` frame counter broke render determinism — pixel-diff probe tests (`test_units_honesty`) saw different grain between renders; ALL animation now derives from `day_night.time_of_day` (same world state ⇒ identical frame). (b) latent ragged-grid bug exposed: neon signpost art row 8-wide vs palette 6-wide crashed sprite sampling; renderer clamps fg index per-row now, factory art fixed. (c) floor-pool incremental sweep had an inverted-step sign bug (pool drained itself); caught by instrumented probe, fixed (`e -= step`).
+
+**Test contracts evolved honestly**: `test_volumetric_props` VENT_DIM expectation now derived via `get_shade_lut(SIDE_SHADE)` (gamma pipeline is the new truth); `_pixels_matching` restricted to non-space 3-runs so vignette-shifted scenery can't false-positive against prop palettes.
+
+**Results**: 209/209 tests green; bench matrix 126 FPS @80×32 / 94 @120×40 / 64 @160×50 (floor 30) with every effect live — pre-upgrade baseline was 342 FPS with none of them. New `tools/render_snapshots.py` writes ANSI snapshots (noon/sunset/fog/night/beams/rain) for visual QA.
+
+**Next**: optional god-rays at half-res; shadow-casting lightmap if we ever accept an optional accel dependency; palette clustering for 256-color terminals.

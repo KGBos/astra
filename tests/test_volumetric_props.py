@@ -10,6 +10,7 @@ import unittest
 
 from src.engine.camera import Camera
 from src.engine.raycaster import Raycaster
+from src.engine.tone import get_shade_lut
 from src.entities.sprite import VolumetricSprite, make_vending_machine_sprite
 from src.world.city_map import CityMap
 from src.world.day_night import DayNightCycle
@@ -18,7 +19,10 @@ from src.renderer.screen_buffer import ScreenBuffer
 
 GLOW = (90, 220, 255)     # vending machine front window (luminous -> exact)
 VENT = (60, 65, 80)       # vending machine side vents (raw art value)
-VENT_DIM = tuple(int(c * VolumetricSprite.SIDE_SHADE) for c in VENT)  # rendered side plane
+# Rendered side plane: SIDE_SHADE attenuation through the gamma-correct tone
+# pipeline (linear-space multiply, sRGB re-encode) -- the honest contract.
+_SIDE_LUT = get_shade_lut(VolumetricSprite.SIDE_SHADE)
+VENT_DIM = tuple(_SIDE_LUT[c] for c in VENT)
 
 
 def _render_with_machine(cam_dx, cam_dy):
@@ -39,12 +43,22 @@ def _render_with_machine(cam_dx, cam_dy):
 
 
 def _pixels_matching(buf, rgb, tol=12):
-    return [
+    """Cells whose fg matches `rgb` within `tol`, restricted to 3-runs.
+
+    Sprite faces are solid blocks of palette color; requiring horizontal or
+    vertical adjacency filters isolated scenery cells that gamma/vignette
+    shading may coincidentally land inside the tolerance window.
+    """
+    pts = [
         (x, y)
         for y in range(buf.height)
         for x in range(buf.width)
-        if p_match(buf.pixels[y][x].fg, rgb, tol)
+        if buf.pixels[y][x].char != ' ' and p_match(buf.pixels[y][x].fg, rgb, tol)
     ]
+    m = set(pts)
+    return [(x, y) for (x, y) in pts
+            if ((x - 1, y) in m and (x + 1, y) in m)
+            or ((x, y - 1) in m and (x, y + 1) in m)]
 
 
 def p_match(fg, rgb, tol):
