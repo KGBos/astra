@@ -414,7 +414,13 @@ def build_manifest_entry(name, width, height, mode, canonical, digest):
 
 
 def regenerate(scenario_filter=None):
-    """Recaptures goldens into tests/golden/manifest.json."""
+    """Recaptures goldens into tests/golden/manifest.json.
+
+    Returns a process exit code (0 ok, 2 unusable invocation). A filtered
+    regeneration only rewrites the selected scenario and therefore requires
+    a complete existing manifest for the others -- it never silently
+    recaptures or drops cells it was not asked to touch.
+    """
     entries = {}
     existing = {}
     if os.path.exists(GOLDEN_MANIFEST):
@@ -422,6 +428,14 @@ def regenerate(scenario_filter=None):
             existing = load_manifest().get("scenarios", {})
         except (ValueError, KeyError):
             existing = {}
+
+    if scenario_filter and not set(SCENARIO_NAMES).issubset(existing):
+        print("Partial regeneration requires a complete existing manifest "
+              "(missing %d of %d scenarios)." % (
+                  len([n for n in SCENARIO_NAMES if n not in existing]),
+                  len(SCENARIO_NAMES)))
+        print("Run: python3 tools/golden_capture.py --regenerate")
+        return 2
 
     for name, width, height, mode, builder in _scenarios():
         if scenario_filter and name != scenario_filter:
@@ -531,8 +545,7 @@ def main():
         parser.error("unknown scenario %r (see --list)" % args.scenario)
 
     if args.regenerate:
-        regenerate(args.scenario)
-        return 0
+        return regenerate(args.scenario)
     return check(args.scenario)
 
 
