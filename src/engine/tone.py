@@ -12,7 +12,8 @@ Research basis (2026 state of the art):
 All tables are pure-stdlib, deterministic, and allocation-free after warmup.
 """
 
-from typing import Dict, List
+import math
+from typing import Dict, List, Tuple
 
 
 # sRGB byte -> linear-light float (2.2 approximation; <1% error vs exact sRGB)
@@ -43,6 +44,7 @@ SHADE_CACHE = _shade_cache
 
 
 def shade_quant(shade: float) -> int:
+    """Quantizes a shade factor onto the 1/64 LUT-bucket grid."""
     q = int(shade * _SHADE_QUANT + 0.5)
     return 0 if q < 0 else q
 
@@ -112,9 +114,9 @@ def add_light_color(base, lr: float, lg: float, lb: float):
 # Bayer 4x4 ordered-dither matrix normalized to [0,1). Index with [y&3][x&3].
 BAYER4 = (
     (0.03125, 0.53125, 0.15625, 0.65625),
-    (0.59375, 0.09375, 0.71875, 0.21875),
-    (0.18750, 0.68750, 0.03125, 0.53125),
-    (0.71875, 0.21875, 0.59375, 0.09375),
+    (0.78125, 0.28125, 0.90625, 0.40625),
+    (0.21875, 0.71875, 0.09375, 0.59375),
+    (0.96875, 0.46875, 0.84375, 0.34375),
 )
 
 # Mid-point of the matrix (for zero-mean perturbation)
@@ -135,15 +137,16 @@ def hash_noise(x: int, y: int, t: int = 0) -> float:
 # ---- Value noise / FBM for procedural clouds -------------------------------
 
 def _vhash(ix: int, iy: int, seed: int) -> float:
+    """Integer-lattice hash for value noise, output roughly [-1, 1]."""
     n = (ix * 1619 + iy * 31337 + seed * 6971) & 0x7FFFFFFF
     n = ((n << 13) ^ n) & 0x7FFFFFFF
     return ((n * (n * n * 60493 + 19990303) + 1376312589) & 0x7FFFFFFF) / 1073741824.0 - 1.0
 
 
 def value_noise(x: float, y: float, seed: int = 0) -> float:
-    """Bilinear-smoothed value noise in [-1,1]."""
-    ix = int(x)
-    iy = int(y)
+    """Bilinear-smoothed value noise in [-1,1]; valid for negative coords."""
+    ix = math.floor(x)
+    iy = math.floor(y)
     fx = x - ix
     fy = y - iy
     u = fx * fx * (3.0 - 2.0 * fx)
