@@ -63,7 +63,7 @@ Controls:
     parser.add_argument("--seed", type=str, default=None, help="Procedural world seed (integer or string)")
     parser.add_argument("--no-color", action="store_true", help="Disable TrueColor ANSI output (pure ASCII mode)")
     parser.add_argument("--no-fill", action="store_true", help="Colored glyphs on the default terminal background (no background block fills)")
-    parser.add_argument("--audio", action="store_true", help="Enable procedural audio SFX & radio [EXPERIMENTAL] (muted by default, toggle in-game with V)")
+    parser.add_argument("--audio", action="store_true", help="Enable procedural audio SFX & radio [EXPERIMENTAL] (starts unmuted; omit for mute-default; toggle in-game with V)")
     parser.add_argument("--demo", action="store_true", help="Launch autonomous city tour mode")
     parser.add_argument("--benchmark", action="store_true", help="Run 3D rendering benchmark and exit")
 

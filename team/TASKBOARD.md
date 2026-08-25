@@ -57,7 +57,7 @@ commit can be recovered with `git show archive/nora-voss-worktree`.
 | ID | Title | Phase | Size | Owner | Status |
 | :-- | :--- | :-- | :-- | :--- | :--- |
 | T-01 | Re-baseline STATUS & README against measured reality | 0 | S | — | Ready |
-| T-02 | Golden-frame regression harness | 0 | M | — | Ready |
+| T-02 | Golden-frame regression harness | 0 | M | Nora Voss ⚙️ | PR open |
 | T-03 | CI perf gate at the real budget | 0 | S | — | Ready |
 | T-04 | Split `raycaster.py` into seams | 1 | L | — | Blocked (T-02) |
 | T-05 | Floor caster: kill per-pixel allocation | 1 | M | — | Blocked (T-04) |
@@ -94,7 +94,7 @@ commit can be recovered with `git show archive/nora-voss-worktree`.
 | **T-36** | **`Display` backend interface** | **2** | **M** | — | Blocked (T-02) |
 | **T-37** | **Web canvas backend (timeboxed spike)** | **6** | **L** | — | Blocked (T-36) |
 | **T-38** | **Windows support** | **4** | **M** | — | Blocked (T-36) |
-| **T-39** | **Label audio experimental** | **4** | **S** | **Priya Raghavan 🔀** | **In Progress** |
+| **T-39** | **Label audio experimental** | **4** | **S** | **Priya Raghavan 🔀** | **Done (PR #4 + review-fix follow-up)** |
 
 ---
 
