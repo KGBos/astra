@@ -80,7 +80,7 @@ are true metres.
 | **Talk / Dialogue Choices** | `E` then `1`, `2`, `3` | Start branching conversations with named NPC characters |
 | **Leave Conversation** | `Space` / `Esc` | Exit the dialogue box |
 | **Tune Radio Station** | `G` | Cycle radio channels (Retrowave, Beats, Jazz, News) |
-| **Toggle Audio Mute** | `V` | Master mute/unmute (starts muted; launch with `--audio` to start unmuted) |
+| **Toggle Audio Mute** | `V` | Master mute/unmute (starts muted; launch with `--audio` to start unmuted). Audio is **experimental** for v1.0. |
 | **Cycle Landmarks** | `U` | Inspect the next point of interest |
 | **Cycle GPS Radar** | `M` | Cycle the mini-map radar OFF → NEAR (31 m range) → FAR (95 m range); each press steps through zoom along with show/hide |
 | **Skip Time of Day** | `T` | Advance clock by 4 hours (Day/Sunset/Night) |
@@ -121,5 +121,6 @@ python3 main.py --no-color
 python3 main.py --no-fill
 
 # Launch with procedural audio SFX & radio unmuted (default is muted; V toggles)
+# Audio is EXPERIMENTAL for v1.0 — mute-default, not a quality target
 python3 main.py --audio
 ```
