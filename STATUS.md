@@ -51,7 +51,7 @@ Current work:
 4. [x] **Soundscape activated** — horn/chime/rev/thud/radio events behind mute-default flag; labelled **EXPERIMENTAL** for v1.0 (T-39): synthesis runs on a background thread and the system-player probe is cached once
 
 ### LATER — Backlog (unordered)
-- **Performance budget**: lock 60 FPS at 160×50 viewport (current: ~250 FPS @ 80×32 with full feature set)
+- **Performance budget**: lock 60 FPS at 160×50 viewport (reference baseline: 40.2 FPS @ 160×50; 160.8 FPS @ 80×32)
 - **Open-sky portals**: F1 latent note — windows facing true open sky paint as wall (unreachable in closed world)
 - **Vehicle-vs-vehicle collisions** (dead `other_vehicles` param) and seed-aware NPC spawn points
 - **Missions & landmarks**: POI-driven objectives on top of existing landmark registry
@@ -75,7 +75,7 @@ Current work:
 | **M5** | Life-Sized World: 1 tile = 1m, generator v2, mega-map 320², lobbies, lane traffic | ✅ Shipped (v0.6) — spec docs/DESIGN_M5_LIFESIZE.md |
 
 ## 5. Verification Baseline
-- Suite: `python3 -m unittest discover -s tests` → **230 tests, all green** in 5.974s
+- Suite: `python3 -m unittest discover -s tests` → **230 tests, all green**
   on `master @ 1e608b9` (2026-08-26). The older 211-test planning note predates the
   merged T-33 and T-39 coverage.
 - Benchmarks: reference-hardware measurements are **160.8 FPS @80×32, 83.6 FPS

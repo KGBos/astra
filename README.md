@@ -154,6 +154,7 @@ astra/
 │   │   ├── car.py             # Vehicle AI & directional ASCII sprites
 │   │   ├── npc.py              # Named NPCs and dialogue
 │   │   ├── pedestrian.py       # Pedestrian state and behavior
+│   │   ├── pedestrian_manager.py # Crowd coordinator and spawner
 │   │   ├── traffic_manager.py # Fleet coordinator & prop spawner
 │   │   └── vehicle_controller.py # Driving and cockpit state
 │   ├── renderer/
