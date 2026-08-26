@@ -89,7 +89,7 @@ commit can be recovered with `git show archive/nora-voss-worktree`.
 | T-31 | Engine authoring guide + refreshed demo | 5 | M | — | Blocked (T-11) |
 | T-32 | Branch hygiene, re-measure, tag v1.0 | 5 | S | — | Blocked (all) |
 | **T-33** | **ASCII glyph luminance ramp** | **3** | **M** | **Nora Voss** ⚙️ | **In progress** (`nora-voss/t33-material-glyph-ramps`) |
-| **T-34** | **Sky as glyphs, not background fill** | **3** | **M** | Milo Hart 🛠️ | PR open |
+| **T-34** | **Sky as glyphs, not background fill** | **3** | **M** | Milo Hart 🛠️ | Done (PR #8) |
 | **T-35** | **Formalise the render-mode matrix** | **3** | **M** | — | Blocked (T-33, T-34) |
 | **T-36** | **`Display` backend interface** | **2** | **M** | — | Blocked (T-02) |
 | **T-37** | **Web canvas backend (timeboxed spike)** | **6** | **L** | — | Blocked (T-36) |
