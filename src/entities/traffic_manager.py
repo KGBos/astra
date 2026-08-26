@@ -39,9 +39,10 @@ def compute_vehicle_budget(city_map) -> int:
 class TrafficManager:
     def __init__(self, city_map, vehicle_count: Optional[int] = None):
         self.city_map = city_map
+        self.rng = random.Random(f"astra:traffic:{city_map.seed}")
         self.vehicles: List[Vehicle] = []
         self.static_props: List[Sprite] = []
-        self.npcs: List[NPC] = build_default_npcs()
+        self.npcs: List[NPC] = build_default_npcs(city_map, rng=self.rng)
 
         self._spawn_static_props()
         if vehicle_count is None:
@@ -108,10 +109,10 @@ class TrafficManager:
 
             def mk():
                 if axis == "NS":
-                    return (cross_m, random.uniform(lo, hi),
-                            random.choice(vtypes), heading)
-                return (random.uniform(lo, hi), cross_m,
-                        random.choice(vtypes), heading)
+                    return (cross_m, self.rng.uniform(lo, hi),
+                            self.rng.choice(vtypes), heading)
+                return (self.rng.uniform(lo, hi), cross_m,
+                        self.rng.choice(vtypes), heading)
             cand = self._road_candidate(mk)
             if cand is not None:
                 return cand + (axis, road_class, center_m, offset_m)
@@ -129,19 +130,19 @@ class TrafficManager:
                     elif offset_m > 0:
                         heading = (0, -1)
                     else:
-                        heading = (0, random.choice((1, -1)))
+                        heading = (0, self.rng.choice((1, -1)))
                 else:
                     if offset_m > 0:
                         heading = (1, 0)
                     elif offset_m < 0:
                         heading = (-1, 0)
                     else:
-                        heading = (random.choice((1, -1)), 0)
+                        heading = (self.rng.choice((1, -1)), 0)
                 candidates.append(lane_slot(axis, cross_m, heading, road_class,
                                             center_m, offset_m, lane["span"]))
 
         candidates = [c for c in candidates if c is not None]
-        random.shuffle(candidates)
+        self.rng.shuffle(candidates)
         # Fleet is capped by available lane slots; the lane-length budget
         # simply requests up to `count` placements across them.
         for x, y, vtype, heading, axis, road_class, center_m, offset_m \

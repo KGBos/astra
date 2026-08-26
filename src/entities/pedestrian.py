@@ -88,23 +88,25 @@ class Pedestrian:
         y: float,
         archetype: Optional[PedestrianArchetype] = None,
         heading_dir: Optional[Tuple[float, float]] = None,
-        walk_speed: Optional[float] = None
+        walk_speed: Optional[float] = None,
+        rng=None
     ):
         self.x = float(x)
         self.y = float(y)
-        self.archetype = archetype or random.choice(list(PedestrianArchetype))
+        self.rng = rng if rng is not None else random
+        self.archetype = archetype or self.rng.choice(list(PedestrianArchetype))
         
         # Initial heading along cardinal directions
         if heading_dir:
             self.dx, self.dy = heading_dir
         else:
             dirs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
-            self.dx, self.dy = random.choice(dirs)
+            self.dx, self.dy = self.rng.choice(dirs)
 
-        self.walk_speed = walk_speed or random.uniform(1.0, 1.8)
+        self.walk_speed = walk_speed or self.rng.uniform(1.0, 1.8)
         self.state = PedestrianState.WALKING
-        self.walk_tick = random.uniform(0.0, 10.0)
-        self.state_timer = random.uniform(2.0, 6.0)
+        self.walk_tick = self.rng.uniform(0.0, 10.0)
+        self.state_timer = self.rng.uniform(2.0, 6.0)
         self.speech_bubble: Optional[str] = None
         self.speech_timer = 0.0
 
@@ -157,7 +159,7 @@ class Pedestrian:
 
     def get_ambient_quote(self) -> str:
         quotes = ARCHETYPE_DIALOGS.get(self.archetype, ["Hello citizen!"])
-        return random.choice(quotes)
+        return self.rng.choice(quotes)
 
     def trigger_speech(self, text: Optional[str] = None, duration: float = 3.5):
         self.speech_bubble = text or self.get_ambient_quote()
@@ -172,7 +174,7 @@ class Pedestrian:
             "Whoa! Keep it on the road!",
             "Out of the way!"
         ]
-        self.trigger_speech(random.choice(reactions), duration=2.5)
+        self.trigger_speech(self.rng.choice(reactions), duration=2.5)
 
     def update(self, dt: float, city_map: CityMap, other_pedestrians: List['Pedestrian']):
         self.walk_tick += dt * 5.0
@@ -195,8 +197,8 @@ class Pedestrian:
                 # Resume walking
                 self.state = PedestrianState.WALKING
                 dirs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
-                self.dx, self.dy = random.choice(dirs)
-                self.state_timer = random.uniform(4.0, 8.0)
+                self.dx, self.dy = self.rng.choice(dirs)
+                self.state_timer = self.rng.uniform(4.0, 8.0)
 
     def _update_walking(self, dt: float, city_map: CityMap, other_pedestrians: List['Pedestrian']):
         look_dist = 1.0
@@ -231,7 +233,7 @@ class Pedestrian:
                 self.state_timer = 3.0
             else:
                 self.state = PedestrianState.WAITING_AT_CROSSWALK
-                self.state_timer = random.uniform(1.5, 3.5)
+                self.state_timer = self.rng.uniform(1.5, 3.5)
                 return
 
         # Check collision with solid wall or water
@@ -246,17 +248,17 @@ class Pedestrian:
 
         # Chance to sit or browse when near plazas
         if self.state_timer <= 0.0:
-            if ftype_ahead == FloorType.PARK_GRASS and random.random() < 0.25:
+            if ftype_ahead == FloorType.PARK_GRASS and self.rng.random() < 0.25:
                 self.state = PedestrianState.SITTING
-                self.state_timer = random.uniform(4.0, 10.0)
-            elif ftype_ahead == FloorType.PLAZA_TILES and random.random() < 0.2:
+                self.state_timer = self.rng.uniform(4.0, 10.0)
+            elif ftype_ahead == FloorType.PLAZA_TILES and self.rng.random() < 0.2:
                 self.state = PedestrianState.BROWSING_SHOP
-                self.state_timer = random.uniform(3.0, 7.0)
+                self.state_timer = self.rng.uniform(3.0, 7.0)
             else:
                 # 30% chance to turn at intersection/corner
-                if random.random() < 0.3:
+                if self.rng.random() < 0.3:
                     self._pick_turn_direction(city_map)
-                self.state_timer = random.uniform(3.0, 6.0)
+                self.state_timer = self.rng.uniform(3.0, 6.0)
 
     def _update_crosswalk_waiting(self, dt: float, city_map: CityMap):
         if self.state_timer <= 0.0:
@@ -275,10 +277,10 @@ class Pedestrian:
                 self.state_timer = 2.5
             else:
                 # 40% chance to turn around rather than wait
-                if random.random() < 0.4:
+                if self.rng.random() < 0.4:
                     self._pick_alternative_walk_direction(city_map)
                     self.state = PedestrianState.WALKING
-                    self.state_timer = random.uniform(3.0, 5.0)
+                    self.state_timer = self.rng.uniform(3.0, 5.0)
                 else:
                     self.state_timer = 1.5
 
@@ -292,7 +294,7 @@ class Pedestrian:
         # If reached sidewalk again, switch back to walking
         if ftype in (FloorType.SIDEWALK, FloorType.PLAZA_TILES, FloorType.PARK_GRASS, FloorType.COBBLESTONE, FloorType.WOOD_DECK):
             self.state = PedestrianState.WALKING
-            self.state_timer = random.uniform(3.0, 6.0)
+            self.state_timer = self.rng.uniform(3.0, 6.0)
 
     def _pick_turn_direction(self, city_map: CityMap):
         """Picks a valid 90-degree turn along walkable sidewalks."""
@@ -300,7 +302,7 @@ class Pedestrian:
             turns = [(0, 1), (0, -1)]
         else:
             turns = [(1, 0), (-1, 0)]
-        random.shuffle(turns)
+        self.rng.shuffle(turns)
         for tdx, tdy in turns:
             test_x = self.x + tdx * 1.5
             test_y = self.y + tdy * 1.5
@@ -313,7 +315,7 @@ class Pedestrian:
         candidates = [(1, 0), (-1, 0), (0, 1), (0, -1)]
         # Remove current direction
         candidates = [c for c in candidates if c != (self.dx, self.dy)]
-        random.shuffle(candidates)
+        self.rng.shuffle(candidates)
         for cdx, cdy in candidates:
             test_x = self.x + cdx * 1.5
             test_y = self.y + cdy * 1.5
