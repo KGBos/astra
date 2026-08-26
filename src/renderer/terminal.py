@@ -95,8 +95,20 @@ class TerminalManager:
         self._active = False
         try:
             # Disable mouse tracking, show cursor, exit alternate buffer, reset colors
-            sys.stdout.write("\033[?1006l\033[?1002l\033[0m\033[?25h\033[?1049l")
-            sys.stdout.flush()
+            # Written via os.write, not sys.stdout: this runs inside fatal-signal
+            # handlers where a reentrant call into the buffered stdout writer
+            # raises RuntimeError and would silently skip the restore.
+            payload = ("\033[?1006l\033[?1002l\033[0m\033[?25h\033[?1049l")\
+                .encode("ascii")
+            try:
+                fd = sys.stdout.fileno()
+            except Exception:
+                fd = None
+            if fd is not None:
+                os.write(fd, payload)
+            else:
+                sys.stdout.write(payload.decode("ascii"))
+                sys.stdout.flush()
         except Exception:
             pass
         try:

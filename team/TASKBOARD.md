@@ -58,7 +58,7 @@ commit can be recovered with `git show archive/nora-voss-worktree`.
 | :-- | :--- | :-- | :-- | :--- | :--- |
 | T-01 | Re-baseline STATUS & README against measured reality | 0 | S | — | Ready |
 | T-02 | Golden-frame regression harness | 0 | M | Nora Voss ⚙️ | PR open |
-| T-03 | CI perf gate at the real budget | 0 | S | — | Ready |
+| T-03 | CI perf gate at the real budget | 0 | S | Honey Beaumont 🍯 | PR open |
 | T-04 | Split `raycaster.py` into seams | 1 | L | — | Blocked (T-02) |
 | T-05 | Floor caster: kill per-pixel allocation | 1 | M | — | Blocked (T-04) |
 | T-06 | Fuse post-FX into the primary write pass | 1 | M | — | Blocked (T-04) |

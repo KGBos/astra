@@ -22,14 +22,36 @@ jobs:
         run: python -m unittest discover -s tests -v
 
   benchmark:
-    # M5 Cycle C perf-budget watch: reports the FPS matrix on every push/PR.
-    # Runner hardware varies, so numbers are informational -- the job fails
-    # only on crashes or when any viewport drops below the generous floor.
+    # T-03 perf gate. Two levels:
+    #   * floor (30 FPS) -- hard; below this the job FAILS the build.
+    #   * budget (60 FPS, the AGENTS.md #2 guardrail) -- warn-only until
+    #     Phase 1 recovers headroom; the shortfall is printed on every run.
+    #     Flip to enforced by adding --enforce-budget once Phase 1 lands.
+    # A crash or hang in the benchmark fails this job (no continue-on-error).
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Benchmark matrix (80x32 / 120x40 / 160x50)
-        run: python tools/bench_matrix.py
+        run: python tools/bench_matrix.py --history docs/perf_history.tsv
+      - name: Upload perf history artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-history
+          path: docs/perf_history.tsv
+
+  terminal-restore:
+    # T-03 / v1.0 exit criterion #6: pty test matrix proving the terminal is
+    # restored on every exit path (graceful quit, SIGINT, SIGTERM).
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Pty terminal-restore matrix
+        run: python -m unittest tests.test_pty_terminal_restore -v
