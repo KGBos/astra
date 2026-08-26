@@ -32,17 +32,25 @@ CELL_ASPECT = 0.5
 
 # T-33: ground materials map through luminance->glyph ladders in art-directed
 # (no-fill) mode. WATER is excluded: its wave glyphs already carry form.
+# T-34 audit: ramps start at a visible glyph (no leading space) so distant
+# dark ground never vanishes into the terminal background.
 GROUND_RAMPS = {
-    FloorType.ROAD_NS: " .,:;-=#",
-    FloorType.ROAD_EW: " .,:;-=#",
-    FloorType.INTERSECTION: " .,:;-=#",
-    FloorType.SIDEWALK: " .,:;!icx#",
-    FloorType.PLAZA_TILES: " ..,,oxdx#",
-    FloorType.COBBLESTONE: " ..,,oxnxm#",
-    FloorType.BRIDGE: " .-=ilcx#",
-    FloorType.WOOD_DECK: " .,,lcnukb#",
-    FloorType.PARK_GRASS: ' ..,",lrvwx#',
+    FloorType.ROAD_NS: ".,:;-=#",
+    FloorType.ROAD_EW: ".,:;-=#",
+    FloorType.INTERSECTION: ".,:;-=#",
+    FloorType.SIDEWALK: ".,:;!icx#",
+    FloorType.PLAZA_TILES: ".,,oxdx#",
+    FloorType.COBBLESTONE: ".,,oxnxm#",
+    FloorType.BRIDGE: ".-=ilcx#",
+    FloorType.WOOD_DECK: ".,,lcnukb#",
+    FloorType.PARK_GRASS: '.,",lrvwx#',
 }
+
+# T-34: the sky reads as glyph density in art-directed (no-fill) modes. The
+# ramp starts at '.' (never a space): a space glyph carries no form once
+# background fills are off, which is exactly the failure this ticket removes.
+SKY_RAMP = ".,:;-=+*#%@"
+SKY_RAMP_HI = len(SKY_RAMP) - 1
 
 
 def pixels_per_meter_at_1m(screen_w: int, screen_h: int, plane_len: float) -> float:
@@ -836,6 +844,7 @@ class Raycaster:
         buffer: ScreenBuffer
     ):
         """Sky gradient drawn into a clipped span (seen through window glass)."""
+        ascii_sky = not buffer.use_background
         for y in range(max(0, y0), min(self.height - 1, y1) + 1):
             t = y / float(max(1, self.height // 2))
             r = int(zenith_col[0] + (horizon_col[0] - zenith_col[0]) * t)
@@ -846,7 +855,18 @@ class Raycaster:
                 sky_col = _blend_color(sky_col, lightning_col, lightning_intensity * 0.9)
             if weather and weather.fog_density > 0.04:
                 sky_col = _blend_color(sky_col, weather.fog_color, min(0.85, weather.fog_density * 6.0))
-            buffer.set_pixel(screen_x, y, ' ', (100, 100, 120), sky_col)
+            # T-34: glyph density instead of space-plus-background
+            if ascii_sky:
+                lum = (sky_col[0] * 54 + sky_col[1] * 183 + sky_col[2] * 19) >> 8
+                ri = int(lum * SKY_RAMP_HI * 0.00392156862745
+                         + (BAYER4[y & 3][screen_x & 3] - BAYER_MID) * 1.5)
+                if ri < 0:
+                    ri = 0
+                elif ri > SKY_RAMP_HI:
+                    ri = SKY_RAMP_HI
+                buffer.set_pixel(screen_x, y, SKY_RAMP[ri], sky_col, sky_col)
+            else:
+                buffer.set_pixel(screen_x, y, ' ', (100, 100, 120), sky_col)
 
     def _render_sky_and_floor(
         self,
@@ -923,6 +943,9 @@ class Raycaster:
         STAR_STEP = 67
         draw_stars = is_night and lightning_intensity < 0.1
         plain_fg = (100, 100, 120)
+        # T-34: in art-directed (no-fill) modes the sky is drawn as glyph
+        # density — no space-glyph-plus-background cells remain.
+        ascii_sky = not buffer.use_background
 
         # Sky rows (above horizon); gradient is row-constant, so it is
         # computed once per row rather than once per cell
@@ -944,6 +967,7 @@ class Raycaster:
             alt_band = 0.35 + 0.65 * t
 
             row = pixels[y]
+            bayer_row = BAYER4[y & 3]
             star_x = (10 * y) % STAR_STEP if draw_stars else -1
             for x in range(width):
                 p = row[x]
@@ -956,36 +980,46 @@ class Raycaster:
                         if cb > 0.85:
                             cb = 0.85
                         sc = sky_col
-                        p.bg = (int(sc[0] + (cloud_col[0] - sc[0]) * cb),
-                                int(sc[1] + (cloud_col[1] - sc[1]) * cb),
-                                int(sc[2] + (cloud_col[2] - sc[2]) * cb))
+                        eff = (int(sc[0] + (cloud_col[0] - sc[0]) * cb),
+                               int(sc[1] + (cloud_col[1] - sc[1]) * cb),
+                               int(sc[2] + (cloud_col[2] - sc[2]) * cb))
                     else:
-                        p.bg = sky_col
+                        eff = sky_col
                 else:
                     cd = 0.0
-                    p.bg = sky_col
+                    eff = sky_col
+                p.bg = eff
 
-                if x == star_x:
-                    if cd > 0.38:
-                        p.char = ' '
-                        p.fg = plain_fg
-                        star_x += STAR_STEP
-                        continue
-                    # Twinkle: deterministic per-star phase, game-clock driven
-                    tw = math.sin(tod * 9.4 + hash_noise(x, y) * 6.2832)
-                    if tw > 0.55:
-                        p.char = '+'
-                        p.fg = (255, 255, 240)
-                    elif tw > -0.25:
-                        p.char = '*'
-                        p.fg = (225, 225, 250)
-                    else:
-                        p.char = '.'
-                        p.fg = (150, 150, 185)
-                    star_x += STAR_STEP
+                # T-34: glyph density carries the gradient and the cloud
+                # structure; Bayer dithering applies to ramp index, not colour
+                if ascii_sky:
+                    lum = (eff[0] * 54 + eff[1] * 183 + eff[2] * 19) >> 8
+                    ri = int(lum * SKY_RAMP_HI * 0.00392156862745
+                             + (bayer_row[x & 3] - BAYER_MID) * 1.5)
+                    if ri < 0:
+                        ri = 0
+                    elif ri > SKY_RAMP_HI:
+                        ri = SKY_RAMP_HI
+                    p.char = SKY_RAMP[ri]
+                    p.fg = eff
                 else:
                     p.char = ' '
                     p.fg = plain_fg
+
+                if x == star_x:
+                    if not (cd > 0.38 and ascii_sky):
+                        # Twinkle: deterministic per-star phase, game-clock driven
+                        tw = math.sin(tod * 9.4 + hash_noise(x, y) * 6.2832)
+                        if tw > 0.55:
+                            p.char = '+'
+                            p.fg = (255, 255, 240)
+                        elif tw > -0.25:
+                            p.char = '*'
+                            p.fg = (225, 225, 250)
+                        else:
+                            p.char = '.'
+                            p.fg = (150, 150, 185)
+                    star_x += STAR_STEP
 
         # Moon: hour-driven azimuth/elevation, phase-shaded ASCII disc
         if is_night and lightning_intensity < 0.1 and horizon_y > 0:

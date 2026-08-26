@@ -75,5 +75,65 @@ class TestNoFillMode(unittest.TestCase):
         self.assertNotIn("\033[49m", frame)
 
 
+class TestSkyGlyphDensity(unittest.TestCase):
+    """T-34 — the sky and ground read as glyph density with fills off."""
+
+    def _buffer(self, use_background, hour=12.0):
+        """Render the raycaster pass only — HUD overlays legitimately draw
+        spaces on top of the sky, so they are excluded from the T-34 contract."""
+        from src.world.day_night import DayNightCycle
+        g = Game(width=64, height=24)
+        g.buffer.use_background = use_background
+        g.day_night.time_of_day = hour
+        for _ in range(3):
+            g._update_simulation(0.05)
+            g.buffer.clear()
+            sprites = g.traffic.get_all_sprites_for_camera(
+                g.camera.pos.x, g.camera.pos.y) + \
+                g.pedestrians.get_all_sprites_for_camera(g.camera.pos.x, g.camera.pos.y)
+            g.raycaster.render(
+                camera=g.camera,
+                city_map=g._active_map(),
+                sprites=sprites,
+                day_night=g.day_night,
+                buffer=g.buffer,
+                weather=g.weather,
+                flashlight_on=g.hud.flashlight_on,
+            )
+        return g.buffer
+
+    def test_no_fill_sky_band_has_no_space_cells(self):
+        buf = self._buffer(use_background=False)
+        sky_chars = [p.char for row in buf.pixels[:6] for p in row]
+        self.assertNotIn(' ', sky_chars,
+                         "space-glyph-plus-background cells remain in the sky band")
+
+    def test_no_fill_sky_reads_as_gradient_in_mono(self):
+        """Glyph density must increase from zenith toward the horizon."""
+        from src.engine.raycaster import SKY_RAMP
+        order = {ch: i for i, ch in enumerate(SKY_RAMP)}
+        star_extra = {'+': len(SKY_RAMP) - 1, '*': len(SKY_RAMP) - 1, '.': 0}
+        order.update(star_extra)
+        buf = self._buffer(use_background=False, hour=22.0)  # night: stars on
+        h = len(buf.pixels)
+        zenith = sum(order.get(p.char, 0) for p in buf.pixels[1]) / len(buf.pixels[1])
+        horizon = sum(order.get(p.char, 0) for p in buf.pixels[h // 2 - 1]) / len(buf.pixels[h // 2 - 1])
+        self.assertGreater(horizon, zenith,
+                           "sky glyph density does not rise toward the horizon")
+
+    def test_no_fill_ground_band_has_no_space_cells(self):
+        buf = self._buffer(use_background=False)
+        h = len(buf.pixels)
+        ground_chars = [p.char for row in buf.pixels[(3 * h) // 4:] for p in row]
+        self.assertNotIn(' ', ground_chars,
+                         "blank cells remain in the ground band with fills off")
+
+    def test_fill_mode_sky_unchanged(self):
+        """Default filled mode keeps the classic background-fill sky."""
+        buf = self._buffer(use_background=True)
+        frame = buf.render_to_ansi()
+        self.assertIn("48;2;", frame)
+
+
 if __name__ == "__main__":
     unittest.main()
