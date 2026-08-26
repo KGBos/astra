@@ -22,6 +22,7 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Nora Voss** | Female | Lead Terminal Performance & Rendering Engineer | ⚙️ | Lead | Active |
 | **Priya Raghavan** | Female | Pull Request & Release Integration Specialist | 🔀 | Specialist | Active |
+| **Milo Hart** | Male | Sky & Atmospheric Rendering Specialist | 🛠️ | Specialist | Active |
 | *Capacity* | - | Specialists & Associates | - | - | Unlimited |
 
 ---
