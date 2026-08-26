@@ -79,13 +79,27 @@ class TestSkyGlyphDensity(unittest.TestCase):
     """T-34 — the sky and ground read as glyph density with fills off."""
 
     def _buffer(self, use_background, hour=12.0):
+        """Render the raycaster pass only — HUD overlays legitimately draw
+        spaces on top of the sky, so they are excluded from the T-34 contract."""
         from src.world.day_night import DayNightCycle
         g = Game(width=64, height=24)
         g.buffer.use_background = use_background
         g.day_night.time_of_day = hour
         for _ in range(3):
             g._update_simulation(0.05)
-            g._render_frame()
+            g.buffer.clear()
+            sprites = g.traffic.get_all_sprites_for_camera(
+                g.camera.pos.x, g.camera.pos.y) + \
+                g.pedestrians.get_all_sprites_for_camera(g.camera.pos.x, g.camera.pos.y)
+            g.raycaster.render(
+                camera=g.camera,
+                city_map=g._active_map(),
+                sprites=sprites,
+                day_night=g.day_night,
+                buffer=g.buffer,
+                weather=g.weather,
+                flashlight_on=g.hud.flashlight_on,
+            )
         return g.buffer
 
     def test_no_fill_sky_band_has_no_space_cells(self):
