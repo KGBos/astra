@@ -4,9 +4,12 @@
 - **Project**: Astra 3D (Pure ASCII 3D First-Person Open-World City Explorer & Rendering Engine)
 - **Founder & Project Lead**: Leon
 - **Founding Lead Engineer**: Marcus Vance (Antigravity)
-- **Current Status**: Post-M1 hardening delivered (Shift 4). Master carries mouse controls, selectable render modes, terminal lifecycle safety nets, and 85 green tests at ~310 FPS. Two major assets are staged but not yet in players' hands: the **M2 feature branch** (+1,033 lines: driving mode, interiors, NPCs, radio) and **Nora's two-tier far-skyline renderer** (in active development).
+- **Current Status**: M1–M5 feature waves are integrated; the project is in the v1.0
+  production-hardening push. The current baseline is `master @ 1e608b9` (2026-08-26),
+  with mouse controls, driving mode, interiors, NPCs, experimental mute-default audio,
+  selectable render modes, golden-frame coverage, and 230 passing tests.
 
-## 2. Delivered (master @ 82ff314)
+## 2. Delivered (master @ 1e608b9)
 - [x] **M1 — Core Engine**: DDA raycaster, camera physics/collision/pitch, procedural multi-district city, traffic AI, pedestrian crowd sim with dialogue, day/night cycle, 6-mode weather with lightning/fog/wetness, HUD + GPS radar, double-buffered TrueColor ANSI renderer
 - [x] **Shift 4 quality pass**: 13 review findings fixed, regression suite established (13 tests), flaky pedestrian tests stabilized
 - [x] **Input v2**: SGR mouse support (drag-look, click actions, wheel), held-key decay window, split escape-sequence buffering
@@ -24,12 +27,18 @@ push** toward v1.0. Plan and tickets:
 - **`docs/DESIGN_ENGINE_API.md`** — `Scene` abstraction so any 3D world can be rendered
 
 Three headline problems drive the push:
-1. **Perf regressed below guardrail** — 40 FPS @160×50 against the documented 60 FPS
-   budget. The §4 M4 row and §5 figures below are **stale and overstated**; T-01 re-measures.
+1. **Perf regressed below guardrail** — 40.2 FPS @160×50 against the documented
+   60 FPS budget. T-03 raises the CI gate; Phase 1 then recovers the headroom.
 2. **Detail runs backwards** — the break-even for one texel per character cell is ~78 m,
    so the entire near field is magnified (9.8 cells/texel at 8 m, 39 at 2 m).
 3. **Engine claim unenforced** — the renderer needs only 4 methods from the world, but
    nothing declares that contract, so no one can bring their own scene.
+
+Current work:
+- [x] **T-01 — Documentation baseline**: STATUS and README now match the current
+  commit, measured test count, reference benchmark matrix, live modules, and controls.
+- [ ] **T-03 — CI performance gate**: report the 60 FPS budget and enforce the floor.
+- [ ] **T-04 — Raycaster seams**: split the renderer before Phase 1 optimization work.
 
 ### PRIOR WAVES — Complete
 - [x] **Two-tier far-skyline raycaster** (Nora Voss): landed through double review gate; window portals, volumetric props, interiors system shipped with it (`integration/city-life-v1`)
@@ -62,12 +71,17 @@ Three headline problems drive the push:
 | **M1** | Core raycasting engine, city, traffic, weather, HUD, game loop | ✅ Shipped (v0.4) |
 | **M2** | Driving mode, interiors, NPCs, radio | ✅ Shipped — merged via gate (`merge/m2-integration`) |
 | **M3** | Vehicle integration, cockpit HUD, procedural audio | ✅ Shipped — live in Game loop, mute-default audio (experimental) |
-| **M4** | Far-skyline LOD, performance budget | ✅ Shipped — two-tier skyline + 60 FPS @160×50 budget met (medians 196–446 FPS)
+| **M4** | Far-skyline LOD, performance budget | ⚠️ Regressed — two-tier skyline shipped, but 40.2 FPS @160×50 misses the 60 FPS budget; Phase 1 recovery is tracked by T-03/T-04 |
 | **M5** | Life-Sized World: 1 tile = 1m, generator v2, mega-map 320², lobbies, lane traffic | ✅ Shipped (v0.6) — spec docs/DESIGN_M5_LIFESIZE.md |
 
 ## 5. Verification Baseline
-- Suite: `python3 -m unittest discover -s tests` → 209 tests, all green
-- Benchmarks: `python3 main.py --benchmark` ~300-450 FPS @80×32; dirty-region frame diffing (`render_frame_delta`) reduces ANSI stream size by 65% (21.1KB → 7.3KB/frame) with zero CPU overhead
+- Suite: `python3 -m unittest discover -s tests` → **230 tests, all green** in 5.974s
+  on `master @ 1e608b9` (2026-08-26). The older 211-test planning note predates the
+  merged T-33 and T-39 coverage.
+- Benchmarks: reference-hardware measurements are **160.8 FPS @80×32, 83.6 FPS
+  @120×40, and 40.2 FPS @160×50** (Theo's 2026-08-24 logbook; hardware model was
+  not recorded). The 160×50 result is below the 60 FPS budget; `tools/bench_matrix.py`
+  remains a 30 FPS floor until T-03 lands.
 - Modes: `--no-fill`, `--no-color`, `--audio` documented in CONTROLS.md; purity asserted by tests
 - CI: GitHub Actions green across Python 3.8/3.10/3.12
 
