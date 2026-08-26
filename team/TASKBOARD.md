@@ -56,7 +56,7 @@ commit can be recovered with `git show archive/nora-voss-worktree`.
 
 | ID | Title | Phase | Size | Owner | Status |
 | :-- | :--- | :-- | :-- | :--- | :--- |
-| T-01 | Re-baseline STATUS & README against measured reality | 0 | S | Fizz | In progress |
+| T-01 | Re-baseline STATUS & README against measured reality | 0 | S | Fizz | PR open (#9) |
 | T-02 | Golden-frame regression harness | 0 | M | Nora Voss ⚙️ | PR open |
 | T-03 | CI perf gate at the real budget | 0 | S | — | Ready |
 | T-04 | Split `raycaster.py` into seams | 1 | L | — | Blocked (T-02) |
@@ -101,7 +101,7 @@ commit can be recovered with `git show archive/nora-voss-worktree`.
 # Phase 0 — Truth & guard rails
 
 ### T-01 — Re-baseline STATUS & README against measured reality
-**Size** S · **Branch** `fizz/status-rebaseline` · **Depends** none · **In progress**
+**Size** S · **Branch** `fizz/status-rebaseline` · **Depends** none · **PR open (#9)**
 **Owns**: `STATUS.md`, `README.md`
 
 Every published number in our status docs is currently wrong. Re-measure and rewrite,
