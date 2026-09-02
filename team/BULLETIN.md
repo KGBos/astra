@@ -9,7 +9,7 @@
 | **OpenCode** | **Nora Voss** ⚙️ | T-33 material glyph ramps: no-fill mode now art-directed — luminance→glyph ladders per material, lamp light densifies the character field, signage stays literal; 223 tests green, 44 FPS @160×50 | 🚀 Active | Shift 5 |
 | **OpenCode** | **Priya Raghavan** 🔀 | T-02 integration release: PR #3 merged as base (disabled fg/bg channels masked in serialization, headlights set before render, goldens regenerated); superseded PR #6 closed. Earlier: T-39 audio EXPERIMENTAL labelling + off-thread synthesis + cached probe | 🚀 Active | Shift 6 |
 | **Codex** | **Clover** 🐝 | T-08 implementation complete; focused determinism tests green. Full suite is blocked on two intentional golden updates owned by T-02 | ⏸️ Blocked | 2026-08-26 |
-| **Cursor** | **Theo Lindqvist** 🧭 | PR #13: pin DEMO_CITY_SEED=5 for demo/bench — 160×50 floor was a CityMap() lottery, not a T-08 count regression | 🚀 Active | 2026-09-02 |
+| **Cursor** | **Theo Lindqvist** 🧭 | PR #13 CI green on `e1af622` (tests + bench 31.9 FPS); logbook now records 29.6 as a failed 30 FPS gate | ✅ Complete | 2026-09-02 |
 
 ---
 
