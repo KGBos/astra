@@ -25,6 +25,16 @@ from src.renderer.terminal import TerminalManager
 from src.input.keyboard import KeyboardController, KeyAction
 
 
+# Demo/benchmark city. `CityMap()` with seed=None draws randint(100000, 999999)
+# every Game() construction, so the CI 160x50 floor was a lottery: same T-08
+# tree measured 29.6 / 30.5 / 40.1 FPS across Actions runs with no engine
+# change. Same-seed T-08 vs master keeps fleet size (e.g. seed 5 → 43
+# vehicles, 40 peds) and frame time within ~2 FPS; the swing is the random
+# city. Seed 5 is T-02's city seed and sat at median complexity in a 6-seed
+# local sample — not the cheapest layout.
+DEMO_CITY_SEED = 5
+
+
 class Game:
     def __init__(
         self,
@@ -34,7 +44,8 @@ class Game:
         use_color: bool = True,
         use_background: bool = True,
         demo_mode: bool = False,
-        use_audio: bool = False
+        use_audio: bool = False,
+        seed: Optional[int] = None,
     ):
         self.target_fps = target_fps
         self.frame_time = 1.0 / target_fps
@@ -53,8 +64,12 @@ class Game:
         # Mute-default per roadmap NEXT.4: opt in with --audio or the V key
         self.soundscape = SoundscapeManager(enabled=use_audio)
 
-        # World & Camera (CityMap default is a 320x320 m metropolis)
-        self.city_map = CityMap()
+        # World & Camera (CityMap default is a 320x320 m metropolis).
+        # Demo/benchmark pins DEMO_CITY_SEED so the 30 FPS floor measures a
+        # known world; interactive play still draws a random recorded seed.
+        if seed is None and demo_mode:
+            seed = DEMO_CITY_SEED
+        self.city_map = CityMap(seed=seed)
         # Spawn player in Cyber-Downtown near avenue
         self.camera = Camera(x=12.5, y=6.5, fov_deg=70.0)
         self.camera.set_direction(math.pi / 2.0)  # Face South (+Y) down avenue

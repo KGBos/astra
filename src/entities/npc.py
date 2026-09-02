@@ -23,7 +23,8 @@ class NPC:
         name: str,
         title: str,
         archetype: str,
-        dialogue: List[DialogueOption]
+        dialogue: List[DialogueOption],
+        rng=None
     ):
         self.x = float(x)
         self.y = float(y)
@@ -31,8 +32,9 @@ class NPC:
         self.title = title
         self.archetype = archetype
         self.dialogue = dialogue
-        self.walk_timer = random.uniform(0.0, 5.0)
-        self.walk_dir = random.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
+        self.rng = rng if rng is not None else random
+        self.walk_timer = self.rng.uniform(0.0, 5.0)
+        self.walk_dir = self.rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
         self.speed = 1.0
 
         # Colors
@@ -48,7 +50,7 @@ class NPC:
         self.walk_timer += dt
         if self.walk_timer >= 4.0:
             self.walk_timer = 0.0
-            self.walk_dir = random.choice([(1, 0), (-1, 0), (0, 1), (0, -1), (0, 0)])
+            self.walk_dir = self.rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1), (0, 0)])
 
         dx, dy = self.walk_dir
         new_x = self.x + dx * self.speed * dt
@@ -102,8 +104,22 @@ class NPC:
         return Sprite(self.x, self.y, f"NPC_{self.name}", chars, fg, scale_x=0.0625, scale_y=0.4375)
 
 
-def build_default_npcs() -> List[NPC]:
+def build_default_npcs(city_map=None, rng=None) -> List[NPC]:
+    """Build the fixed story anchors, filtering any anchor outside the map.
+
+    Story NPCs intentionally remain at authored coordinates so dialogue remains
+    discoverable across seeds. When a CityMap is supplied, its dimensions are
+    the bounds contract; the anchors are only included when fully in bounds.
+    """
+    if rng is None:
+        rng = random
     npcs = []
+
+    def add_npc(npc):
+        if city_map is None or (
+            0.0 <= npc.x < city_map.width and 0.0 <= npc.y < city_map.height
+        ):
+            npcs.append(npc)
 
     # 1. Kaito the Ramen Master (near Midtown Ramen Shop at 22, 6)
     kaito_dialogue = [
@@ -120,7 +136,7 @@ def build_default_npcs() -> List[NPC]:
             "Sure! Walk up to any vehicle and press [F] to jump in behind the wheel. Watch the traffic lights!"
         )
     ]
-    npcs.append(NPC(22.5, 7.5, "Kaito", "Master Ramen Chef", "CHEF", kaito_dialogue))
+    add_npc(NPC(22.5, 7.5, "Kaito", "Master Ramen Chef", "CHEF", kaito_dialogue, rng=rng))
 
     # 2. Nyx the Netrunner (Downtown Cyber District at 6, 8)
     nyx_dialogue = [
@@ -137,7 +153,7 @@ def build_default_npcs() -> List[NPC]:
             "Take 1st Uptown Street south to (16, 16). Clean air, green trees, and peaceful fountains away from the skyscrapers."
         )
     ]
-    npcs.append(NPC(6.5, 8.5, "Nyx", "Cyber Netrunner", "NETRUNNER", nyx_dialogue))
+    add_npc(NPC(6.5, 8.5, "Nyx", "Cyber Netrunner", "NETRUNNER", nyx_dialogue, rng=rng))
 
     # 3. Mr. Sterling (Historic Brownstones at 8, 24)
     sterling_dialogue = [
@@ -150,6 +166,6 @@ def build_default_npcs() -> List[NPC]:
             "Congested on Silicon Way! The automated traffic lights keep things flowing, though."
         )
     ]
-    npcs.append(NPC(8.5, 24.5, "Sterling", "Historic Resident", "EXECUTIVE", sterling_dialogue))
+    add_npc(NPC(8.5, 24.5, "Sterling", "Historic Resident", "EXECUTIVE", sterling_dialogue, rng=rng))
 
     return npcs

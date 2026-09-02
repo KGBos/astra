@@ -14,7 +14,7 @@
    ticket owns, memo that owner first — this is what keeps parallel worktrees safe.
 5. Open a PR with a green suite. Leon merges (Guardrail #5).
 
-**Ready to start now, in parallel, zero file overlap: T-01, T-02 (claimed), T-03, T-08, T-34.**
+**Ready to start now, in parallel, zero file overlap: T-01, T-02 (claimed), T-03, T-34. T-08 is claimed by Clover.**
 
 ---
 
@@ -63,7 +63,7 @@ commit can be recovered with `git show archive/nora-voss-worktree`.
 | T-05 | Floor caster: kill per-pixel allocation | 1 | M | — | Blocked (T-04) |
 | T-06 | Fuse post-FX into the primary write pass | 1 | M | — | Blocked (T-04) |
 | T-07 | Wall slice: direct writes, hoisted LUTs | 1 | M | — | Blocked (T-04) |
-| T-08 | Seed-reproducible entity spawning | 1 | S | — | Ready |
+| T-08 | Seed-reproducible entity spawning | 1 | S | Clover | In progress (`clover/deterministic-spawns`) |
 | T-09 | `MaterialRegistry` — named materials, no ID collisions | 2 | M | — | Blocked (T-04) |
 | T-10 | `Scene` protocol + conformance | 2 | M | — | Blocked (T-09) |
 | T-11 | `GridScene` loader — bring your own world | 2 | M | — | Blocked (T-10) |

@@ -103,6 +103,7 @@ class PedestrianManager:
     def __init__(self, city_map: CityMap, pedestrian_count: Optional[int] = None,
                  spawn_clock: bool = False):
         self.city_map = city_map
+        self.rng = random.Random(f"astra:pedestrians:{city_map.seed}")
         self.pedestrians: List[Pedestrian] = []
         self.last_spawn_seconds: Optional[float] = None
         started = time.perf_counter() if spawn_clock else None
@@ -129,12 +130,14 @@ class PedestrianManager:
             if not district_tiles or quota <= 0:
                 continue
             candidates = DISTRICT_ARCHETYPES.get(district, list(PedestrianArchetype))
-            picked = random.sample(district_tiles, min(quota, len(district_tiles)))
+            picked = self.rng.sample(district_tiles, min(quota, len(district_tiles)))
             for gx, gy in picked:
-                archetype = random.choice(candidates)
-                px = gx + random.uniform(0.2, 0.8)
-                py = gy + random.uniform(0.2, 0.8)
-                self.pedestrians.append(Pedestrian(px, py, archetype=archetype))
+                archetype = self.rng.choice(candidates)
+                px = gx + self.rng.uniform(0.2, 0.8)
+                py = gy + self.rng.uniform(0.2, 0.8)
+                self.pedestrians.append(
+                    Pedestrian(px, py, archetype=archetype, rng=self.rng)
+                )
 
     def update(self, dt: float):
         for ped in self.pedestrians:
