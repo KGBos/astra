@@ -87,6 +87,31 @@ class TestSeedReproducibility(unittest.TestCase):
         self.assertEqual(city.floors, replay.floors)
         self.assertEqual(city.spawn_pos, replay.spawn_pos)
 
+    def test_demo_mode_pins_a_replayable_city_seed(self):
+        """CI bench constructs Game(demo_mode=True); that path must not lottery a city."""
+        from src.game import DEMO_CITY_SEED, Game
+
+        first = Game(width=40, height=12, demo_mode=True)
+        second = Game(width=40, height=12, demo_mode=True)
+
+        self.assertEqual(first.city_map.seed, DEMO_CITY_SEED)
+        self.assertEqual(second.city_map.seed, DEMO_CITY_SEED)
+        self.assertEqual(
+            [(round(v.x, 6), round(v.y, 6), v.vtype.value) for v in first.traffic.vehicles],
+            [(round(v.x, 6), round(v.y, 6), v.vtype.value) for v in second.traffic.vehicles],
+        )
+        self.assertEqual(
+            [(round(p.x, 6), round(p.y, 6), p.archetype.value) for p in first.pedestrians.pedestrians],
+            [(round(p.x, 6), round(p.y, 6), p.archetype.value) for p in second.pedestrians.pedestrians],
+        )
+
+    def test_interactive_play_still_draws_a_random_recorded_seed(self):
+        from src.game import Game
+
+        game = Game(width=40, height=12, demo_mode=False)
+        self.assertGreaterEqual(game.city_map.seed, 100000)
+        self.assertIsInstance(game.city_map.seed, int)
+
     def test_story_npcs_stay_inside_the_320m_city_bounds(self):
         city = CityMap(width=320, height=320, seed=7)
         traffic = TrafficManager(city, vehicle_count=0)
