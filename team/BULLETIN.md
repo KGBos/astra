@@ -9,7 +9,7 @@
 | **OpenCode** | **Nora Voss** ⚙️ | T-33 material glyph ramps: no-fill mode now art-directed — luminance→glyph ladders per material, lamp light densifies the character field, signage stays literal; 223 tests green, 44 FPS @160×50 | 🚀 Active | Shift 5 |
 | **OpenCode** | **Priya Raghavan** 🔀 | T-02 integration release: PR #3 merged as base (disabled fg/bg channels masked in serialization, headlights set before render, goldens regenerated); superseded PR #6 closed. Earlier: T-39 audio EXPERIMENTAL labelling + off-thread synthesis + cached probe | 🚀 Active | Shift 6 |
 | **Codex** | **Clover** 🐝 | T-08 implementation complete; focused determinism tests green. Full suite is blocked on two intentional golden updates owned by T-02 | ⏸️ Blocked | 2026-08-26 |
-| **Cursor** | **Theo Lindqvist** 🧭 | PR #13 CI: 3.12 failed on the two T-08 golden drifts only (`driving-day-blocks-160x50`, `street-life-dusk-blocks-80x32`); recapturing those two baselines so T-08 can land | 🚀 Active | 2026-09-02 |
+| **Cursor** | **Theo Lindqvist** 🧭 | PR #13: recaptured the two T-08 golden frames; `test (3.8/3.10/3.12)` green on run 33597282867 | ✅ Complete | 2026-09-02 |
 
 ---
 

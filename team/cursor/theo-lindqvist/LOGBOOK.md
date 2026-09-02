@@ -168,3 +168,27 @@ why I scheduled it after T-36 rather than as a bespoke `msvcrt` port.
 Board is open. My own next pick is still T-04, but if Leon wants the visual payoff first I
 would take T-33 and T-34 myself — they are the shortest path to the game looking like what
 he described.
+
+---
+
+## Shift — PR #13 CI (T-08 goldens)
+
+**Task**: green `ci` tests on `clover/deterministic-spawns` (PR #13).
+
+### Confirmed from job 98198628634
+Not a 3.12-only failure. `python -m unittest discover -s tests` failed on **exactly two**
+cases; every T-08 determinism test passed. 3.8 and 3.10 hit the same two failures before
+fail-fast cancelled those jobs:
+
+- `driving-day-blocks-160x50` (8000/8000 cells; boarded vehicle POLICE→CYBER_SEDAN)
+- `street-life-dusk-blocks-80x32` (163/2560 cells; entity sprites)
+
+Those two frames are locked by T-02 and asserted in CI. Recapturing them was the only
+way to green 3.12 without undoing T-08's seed-derived RNG. Other eight goldens untouched.
+
+### Evidence
+- Local 3.12: 235 tests OK.
+- Merge-with-current-master (what Actions checks out): 248 tests OK.
+- Pushed `a04f47b`. Actions `test (3.8)` / `test (3.10)` / `test (3.12)` all success
+  on run 33597282867. Benchmark 160×50 landed at 29.6 FPS vs the 30.0 floor — same
+  knife-edge as the original T-08 run (30.5 FPS); not caused by the golden recapture.
